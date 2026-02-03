@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TechStore - E-commerce Demo</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/keycloak-js@23.0.0/dist/keycloak.min.js"></script>
+  <script src="/js/common.js"></script>
+  <style>
+    main {
+      padding: 2rem 0;
+    }
+
+    .filters {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 0.5rem;
+      box-shadow: var(--card-shadow);
+      margin-bottom: 2rem;
+    }
+
+    .filters-row {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      align-items: flex-end;
+    }
+
+    .filters-row .form-group {
+      flex: 1;
+      min-width: 200px;
+      margin-bottom: 0;
+    }
+
+    .product-card {
+      background: white;
+      border-radius: 0.5rem;
+      box-shadow: var(--card-shadow);
+      overflow: hidden;
+      transition: transform 0.2s, box-shadow 0.2s;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .product-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    .product-image {
+      width: 100%;
+      height: 200px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 4rem;
+      color: white;
+      opacity: 0.8;
+    }
+
+    .product-info {
+      padding: 1rem;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .product-name {
+      font-size: 1.125rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: var(--text-color);
+    }
+
+    .product-description {
+      font-size: 0.875rem;
+      color: var(--secondary-color);
+      margin-bottom: 1rem;
+      flex: 1;
+    }
+
+    .product-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: auto;
+    }
+
+    .product-price {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: var(--primary-color);
+    }
+
+    .product-stock {
+      font-size: 0.75rem;
+      color: var(--secondary-color);
+    }
+
+    .no-results {
+      text-align: center;
+      padding: 3rem;
+      color: var(--secondary-color);
+    }
+
+    .category-badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      background: var(--background);
+      border-radius: 1rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--secondary-color);
+      margin-bottom: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container header-content">
+      <a href="/" class="logo">🛒 TechStore</a>
+      <nav>
+        <a href="/">Prodotti</a>
+        <span class="user-info">
+          <span id="userGreeting" class="hidden"></span>
+          <a href="/login" id="loginLink">Login</a>
+          <a href="/orders" id="ordersLink" class="hidden">Ordini</a>
+          <a href="/admin/products" id="adminLink" class="hidden">Admin</a>
+          <button id="logoutBtn" class="btn btn-sm btn-outline hidden">Logout</button>
+        </span>
+        <a href="/cart" class="cart-badge">
+          🛒 Carrello
+          <span id="cartBadge" class="badge hidden">0</span>
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="container">
+      <h1 class="mb-3">Catalogo Prodotti</h1>
+
+      <div class="filters">
+        <div class="filters-row">
+          <div class="form-group">
+            <label for="searchInput">Cerca prodotto</label>
+            <input
+              type="text"
+              id="searchInput"
+              placeholder="Cerca per nome o descrizione..."
+              data-testid="search-input"
+            >
+          </div>
+          <div class="form-group">
+            <label for="categoryFilter">Categoria</label>
+            <select id="categoryFilter" data-testid="category-filter">
+              <option value="">Tutte le categorie</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="sortFilter">Ordina per</label>
+            <select id="sortFilter" data-testid="sort-filter">
+              <option value="">Default</option>
+              <option value="price-asc">Prezzo: crescente</option>
+              <option value="price-desc">Prezzo: decrescente</option>
+              <option value="name">Nome A-Z</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <button id="resetFilters" class="btn btn-outline">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="loadingState" class="loading hidden">
+        <div class="spinner"></div>
+        <p class="mt-2">Caricamento prodotti...</p>
+      </div>
+
+      <div id="errorState" class="alert alert-error hidden"></div>
+
+      <div id="productsGrid" class="grid grid-3"></div>
+
+      <div id="noResults" class="no-results hidden">
+        <h2>Nessun prodotto trovato</h2>
+        <p>Prova a modificare i filtri di ricerca</p>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    let allProducts = [];
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadCategories();
+      await loadProducts();
+      setupEventListeners();
+    });
+
+    // Load categories
+    async function loadCategories() {
+      try {
+        const response = await authenticatedFetch('/api/categories');
+        const categories = await response.json();
+
+        const select = document.getElementById('categoryFilter');
+        categories.forEach(cat => {
+          const option = document.createElement('option');
+          option.value = cat;
+          option.textContent = cat.charAt(0).toUpperCase() + cat.slice(1);
+          select.appendChild(option);
+        });
+      } catch (error) {
+        console.error('Error loading categories:', error);
+      }
+    }
+
+    // Load products
+    async function loadProducts() {
+      showLoading();
+
+      try {
+        const search = document.getElementById('searchInput').value;
+        const category = document.getElementById('categoryFilter').value;
+        const sort = document.getElementById('sortFilter').value;
+
+        const params = new URLSearchParams();
+        if (search) params.append('search', search);
+        if (category) params.append('category', category);
+        if (sort) params.append('sort', sort);
+
+        const response = await authenticatedFetch(`/api/products?${params}`);
+        allProducts = await response.json();
+
+        displayProducts(allProducts);
+      } catch (error) {
+        showError('Errore nel caricamento dei prodotti');
+        console.error('Error loading products:', error);
+      } finally {
+        hideLoading();
+      }
+    }
+
+    // Display products
+    function displayProducts(products) {
+      const grid = document.getElementById('productsGrid');
+      const noResults = document.getElementById('noResults');
+
+      grid.innerHTML = '';
+
+      if (products.length === 0) {
+        noResults.classList.remove('hidden');
+        return;
+      }
+
+      noResults.classList.add('hidden');
+
+      products.forEach(product => {
+        const card = createProductCard(product);
+        grid.appendChild(card);
+      });
+    }
+
+    // Create product card
+    function createProductCard(product) {
+      const card = document.createElement('div');
+      card.className = 'product-card';
+      card.setAttribute('data-testid', `product-${product.id}`);
+
+      const icon = getProductIcon(product.category);
+
+      card.innerHTML = `
+        <div class="product-image">${icon}</div>
+        <div class="product-info">
+          <span class="category-badge">${product.category}</span>
+          <h3 class="product-name">${product.name}</h3>
+          <p class="product-description">${product.description}</p>
+          <div class="product-footer">
+            <div>
+              <div class="product-price">€${product.price.toFixed(2)}</div>
+              <div class="product-stock">Stock: ${product.stock}</div>
+            </div>
+            <button
+              class="btn btn-primary"
+              onclick="addToCart(${product.id})"
+              data-testid="add-to-cart-${product.id}"
+              ${product.stock === 0 ? 'disabled' : ''}
+            >
+              ${product.stock === 0 ? 'Esaurito' : 'Aggiungi'}
+            </button>
+          </div>
+        </div>
+      `;
+
+      return card;
+    }
+
+    // Get product icon based on category
+    function getProductIcon(category) {
+      const icons = {
+        electronics: '💻',
+        accessories: '🔌',
+        audio: '🎧',
+        storage: '💾'
+      };
+      return icons[category] || '📦';
+    }
+
+    // Add to cart
+    async function addToCart(productId) {
+      try {
+        const response = await authenticatedFetch('/api/cart', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ productId, quantity: 1 })
+        });
+
+        if (response.ok) {
+          await updateCartBadge();
+          showSuccess('Prodotto aggiunto al carrello!');
+        } else {
+          showError('Errore nell\'aggiunta al carrello');
+        }
+      } catch (error) {
+        console.error('Error adding to cart:', error);
+        showError('Errore nell\'aggiunta al carrello');
+      }
+    }
+
+    // Setup event listeners
+    function setupEventListeners() {
+      document.getElementById('searchInput').addEventListener('input', debounce(loadProducts, 300));
+      document.getElementById('categoryFilter').addEventListener('change', loadProducts);
+      document.getElementById('sortFilter').addEventListener('change', loadProducts);
+      document.getElementById('resetFilters').addEventListener('click', resetFilters);
+    }
+
+    // Reset filters
+    function resetFilters() {
+      document.getElementById('searchInput').value = '';
+      document.getElementById('categoryFilter').value = '';
+      document.getElementById('sortFilter').value = '';
+      loadProducts();
+    }
+
+    // Show loading
+    function showLoading() {
+      document.getElementById('loadingState').classList.remove('hidden');
+      document.getElementById('productsGrid').classList.add('hidden');
+    }
+
+    // Hide loading
+    function hideLoading() {
+      document.getElementById('loadingState').classList.add('hidden');
+      document.getElementById('productsGrid').classList.remove('hidden');
+    }
+
+    // Show error
+    function showError(message) {
+      const errorEl = document.getElementById('errorState');
+      errorEl.textContent = message;
+      errorEl.classList.remove('hidden');
+      setTimeout(() => errorEl.classList.add('hidden'), 5000);
+    }
+
+    // Show success
+    function showSuccess(message) {
+      // Simple alert for now - can be enhanced with a toast component
+      const alert = document.createElement('div');
+      alert.className = 'alert alert-success';
+      alert.textContent = message;
+      alert.style.position = 'fixed';
+      alert.style.top = '20px';
+      alert.style.right = '20px';
+      alert.style.zIndex = '1000';
+      document.body.appendChild(alert);
+      setTimeout(() => alert.remove(), 3000);
+    }
+
+    // Debounce utility
+    function debounce(func, wait) {
+      let timeout;
+      return function executedFunction(...args) {
+        const later = () => {
+          clearTimeout(timeout);
+          func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+      };
+    }
+  </script>
+</body>
+</html>

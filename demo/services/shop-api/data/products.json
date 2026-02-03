@@ -1,0 +1,92 @@
+[
+  {
+    "id": 1,
+    "name": "Laptop ProBook 15",
+    "category": "electronics",
+    "price": 899.99,
+    "stock": 15,
+    "image": "/images/laptop.jpg",
+    "description": "Laptop professionale con processore Intel Core i7, 16GB RAM, SSD 512GB"
+  },
+  {
+    "id": 2,
+    "name": "Wireless Mouse",
+    "category": "electronics",
+    "price": 29.99,
+    "stock": 50,
+    "image": "/images/mouse.jpg",
+    "description": "Mouse wireless ergonomico con sensore ottico di precisione"
+  },
+  {
+    "id": 3,
+    "name": "Mechanical Keyboard",
+    "category": "electronics",
+    "price": 119.99,
+    "stock": 25,
+    "image": "/images/keyboard.jpg",
+    "description": "Tastiera meccanica RGB con switch Cherry MX"
+  },
+  {
+    "id": 4,
+    "name": "USB-C Hub",
+    "category": "accessories",
+    "price": 49.99,
+    "stock": 30,
+    "image": "/images/hub.jpg",
+    "description": "Hub USB-C 7 in 1 con HDMI, USB 3.0 e lettore SD"
+  },
+  {
+    "id": 5,
+    "name": "Webcam HD Pro",
+    "category": "electronics",
+    "price": 79.99,
+    "stock": 20,
+    "image": "/images/webcam.jpg",
+    "description": "Webcam Full HD 1080p con microfono integrato"
+  },
+  {
+    "id": 6,
+    "name": "Headphones Studio",
+    "category": "audio",
+    "price": 159.99,
+    "stock": 18,
+    "image": "/images/headphones.jpg",
+    "description": "Cuffie professionali over-ear con cancellazione del rumore"
+  },
+  {
+    "id": 7,
+    "name": "Portable SSD 1TB",
+    "category": "storage",
+    "price": 129.99,
+    "stock": 40,
+    "image": "/images/ssd.jpg",
+    "description": "SSD esterno portatile USB 3.2 da 1TB"
+  },
+  {
+    "id": 8,
+    "name": "Monitor 27\" 4K",
+    "category": "electronics",
+    "price": 449.99,
+    "stock": 12,
+    "image": "/images/monitor.jpg",
+    "description": "Monitor 4K IPS 27 pollici con HDR"
+  },
+  {
+    "id": 9,
+    "name": "Laptop Stand",
+    "category": "accessories",
+    "price": 34.99,
+    "stock": 45,
+    "image": "/images/stand.jpg",
+    "description": "Supporto ergonomico in alluminio per laptop"
+  },
+  {
+    "id": 10,
+    "name": "Cable Organizer Set",
+    "category": "accessories",
+    "price": 14.99,
+    "stock": 100,
+    "image": "/images/cables.jpg",
+    "description": "Set organizzatore cavi con clip e fascette"
+  }
+]

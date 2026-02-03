@@ -1,0 +1,8 @@
+{
+  "realm": "techstore-realm",
+  "auth-server-url": "http://keycloak:8080",
+  "ssl-required": "external",
+  "resource": "shop-client",
+  "public-client": true,
+  "confidential-port": 0
+}

@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Checkout - TechStore</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/keycloak-js@23.0.0/dist/keycloak.min.js"></script>
+  <script src="/js/common.js"></script>
+  <style>
+    main {
+      padding: 2rem 0;
+    }
+
+    .checkout-layout {
+      display: grid;
+      grid-template-columns: 1fr 400px;
+      gap: 2rem;
+    }
+
+    .checkout-section {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 0.5rem;
+      box-shadow: var(--card-shadow);
+      margin-bottom: 1.5rem;
+    }
+
+    .checkout-section h2 {
+      margin-bottom: 1.5rem;
+      font-size: 1.25rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 2px solid var(--border-color);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .order-summary {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 0.5rem;
+      box-shadow: var(--card-shadow);
+      height: fit-content;
+      position: sticky;
+      top: 100px;
+    }
+
+    .order-summary h2 {
+      margin-bottom: 1.5rem;
+      font-size: 1.25rem;
+    }
+
+    .order-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .order-item:last-child {
+      border-bottom: none;
+    }
+
+    .order-item-name {
+      font-weight: 500;
+    }
+
+    .order-item-details {
+      color: var(--secondary-color);
+      font-size: 0.875rem;
+    }
+
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .summary-row.total {
+      font-size: 1.25rem;
+      font-weight: bold;
+      color: var(--primary-color);
+      margin-top: 1.5rem;
+      padding-top: 1.5rem;
+      border-top: 2px solid var(--border-color);
+    }
+
+    .payment-methods {
+      display: grid;
+      gap: 1rem;
+    }
+
+    .payment-method {
+      border: 2px solid var(--border-color);
+      padding: 1rem;
+      border-radius: 0.375rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .payment-method:hover {
+      border-color: var(--primary-color);
+      background: var(--background);
+    }
+
+    .payment-method input[type="radio"] {
+      width: auto;
+    }
+
+    .payment-method.selected {
+      border-color: var(--primary-color);
+      background: var(--background);
+    }
+
+    .success-message {
+      text-align: center;
+      padding: 3rem;
+    }
+
+    .success-icon {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+    }
+
+    @media (max-width: 768px) {
+      .checkout-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container header-content">
+      <a href="/" class="logo">🛒 TechStore</a>
+      <nav>
+        <a href="/">Prodotti</a>
+        <span class="user-info">
+          <span id="userGreeting" class="hidden"></span>
+          <a href="/login" id="loginLink">Login</a>
+          <a href="/orders" id="ordersLink" class="hidden">Ordini</a>
+          <a href="/admin/products" id="adminLink" class="hidden">Admin</a>
+          <button id="logoutBtn" class="btn btn-sm btn-outline hidden">Logout</button>
+        </span>
+        <a href="/cart" class="cart-badge">
+          🛒 Carrello
+          <span id="cartBadge" class="badge hidden">0</span>
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="container">
+      <h1 class="mb-3">Checkout</h1>
+
+      <div id="checkoutForm" class="checkout-layout">
+        <div>
+          <div id="loginRequired" class="alert alert-info hidden">
+            Devi effettuare il <a href="/login">login</a> per completare l'acquisto.
+          </div>
+
+          <div id="errorMessage" class="alert alert-error hidden"></div>
+
+          <!-- Shipping Address -->
+          <div class="checkout-section">
+            <h2>Indirizzo di Spedizione</h2>
+            <form id="shippingForm">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="firstName">Nome *</label>
+                  <input type="text" id="firstName" required data-testid="first-name">
+                </div>
+                <div class="form-group">
+                  <label for="lastName">Cognome *</label>
+                  <input type="text" id="lastName" required data-testid="last-name">
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="address">Indirizzo *</label>
+                <input type="text" id="address" required data-testid="address">
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="city">Città *</label>
+                  <input type="text" id="city" required data-testid="city">
+                </div>
+                <div class="form-group">
+                  <label for="zipCode">CAP *</label>
+                  <input type="text" id="zipCode" required data-testid="zip-code">
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="phone">Telefono *</label>
+                <input type="tel" id="phone" required data-testid="phone">
+              </div>
+            </form>
+          </div>
+
+          <!-- Payment Method -->
+          <div class="checkout-section">
+            <h2>Metodo di Pagamento</h2>
+            <div class="payment-methods">
+              <label class="payment-method" data-testid="payment-credit-card">
+                <input type="radio" name="payment" value="credit-card" checked>
+                <div>
+                  <div style="font-weight: 500;">💳 Carta di Credito</div>
+                  <div style="font-size: 0.875rem; color: var(--secondary-color);">
+                    Visa, Mastercard, American Express
+                  </div>
+                </div>
+              </label>
+              <label class="payment-method" data-testid="payment-paypal">
+                <input type="radio" name="payment" value="paypal">
+                <div>
+                  <div style="font-weight: 500;">🅿️ PayPal</div>
+                  <div style="font-size: 0.875rem; color: var(--secondary-color);">
+                    Paga con il tuo account PayPal
+                  </div>
+                </div>
+              </label>
+              <label class="payment-method" data-testid="payment-bank-transfer">
+                <input type="radio" name="payment" value="bank-transfer">
+                <div>
+                  <div style="font-weight: 500;">🏦 Bonifico Bancario</div>
+                  <div style="font-size: 0.875rem; color: var(--secondary-color);">
+                    Riceverai le istruzioni via email
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Order Summary -->
+        <div class="order-summary">
+          <h2>Riepilogo Ordine</h2>
+          <div id="orderItems"></div>
+
+          <div class="summary-row">
+            <span>Subtotale</span>
+            <span id="subtotal">€0.00</span>
+          </div>
+
+          <div class="summary-row">
+            <span>Spedizione</span>
+            <span>Gratis</span>
+          </div>
+
+          <div class="summary-row total">
+            <span>Totale</span>
+            <span id="total" data-testid="order-total">€0.00</span>
+          </div>
+
+          <button
+            id="placeOrderBtn"
+            class="btn btn-primary btn-lg mt-3"
+            style="width: 100%;"
+            onclick="placeOrder()"
+            data-testid="place-order-button"
+          >
+            Conferma Ordine
+          </button>
+        </div>
+      </div>
+
+      <!-- Success Message -->
+      <div id="successMessage" class="card hidden">
+        <div class="success-message">
+          <div class="success-icon">✅</div>
+          <h2>Ordine Completato!</h2>
+          <p class="mt-2">Grazie per il tuo acquisto.</p>
+          <p>Numero ordine: <strong id="orderNumber" data-testid="order-number"></strong></p>
+          <div class="mt-3">
+            <a href="/orders" class="btn btn-primary">Visualizza Ordini</a>
+            <a href="/" class="btn btn-outline ml-2">Torna allo Shop</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    let cart = [];
+    let currentUser = null;
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', async () => {
+      currentUser = await checkAuth();
+
+      if (!currentUser) {
+        document.getElementById('loginRequired').classList.remove('hidden');
+        document.getElementById('placeOrderBtn').disabled = true;
+        return;
+      }
+
+      await loadCart();
+      setupPaymentMethods();
+    });
+
+    // Load cart
+    async function loadCart() {
+      try {
+        const response = await authenticatedFetch('/api/cart');
+        cart = await response.json();
+
+        if (cart.length === 0) {
+          window.location.href = '/cart';
+          return;
+        }
+
+        displayOrderSummary();
+      } catch (error) {
+        console.error('Error loading cart:', error);
+      }
+    }
+
+    // Display order summary
+    function displayOrderSummary() {
+      const orderItems = document.getElementById('orderItems');
+      orderItems.innerHTML = '';
+
+      cart.forEach(item => {
+        const itemEl = document.createElement('div');
+        itemEl.className = 'order-item';
+        itemEl.innerHTML = `
+          <div>
+            <div class="order-item-name">${item.product.name}</div>
+            <div class="order-item-details">${item.quantity} × €${item.product.price.toFixed(2)}</div>
+          </div>
+          <div style="font-weight: 500;">
+            €${(item.product.price * item.quantity).toFixed(2)}
+          </div>
+        `;
+        orderItems.appendChild(itemEl);
+      });
+
+      const subtotal = cart.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
+      document.getElementById('subtotal').textContent = `€${subtotal.toFixed(2)}`;
+      document.getElementById('total').textContent = `€${subtotal.toFixed(2)}`;
+    }
+
+    // Setup payment methods
+    function setupPaymentMethods() {
+      const paymentMethods = document.querySelectorAll('.payment-method');
+      paymentMethods.forEach(method => {
+        method.addEventListener('click', () => {
+          paymentMethods.forEach(m => m.classList.remove('selected'));
+          method.classList.add('selected');
+          method.querySelector('input[type="radio"]').checked = true;
+        });
+      });
+
+      // Select first method by default
+      paymentMethods[0].classList.add('selected');
+    }
+
+    // Place order
+    async function placeOrder() {
+      if (!currentUser) {
+        window.location.href = '/login';
+        return;
+      }
+
+      const errorMessage = document.getElementById('errorMessage');
+      errorMessage.classList.add('hidden');
+
+      // Get form data
+      const firstName = document.getElementById('firstName').value.trim();
+      const lastName = document.getElementById('lastName').value.trim();
+      const address = document.getElementById('address').value.trim();
+      const city = document.getElementById('city').value.trim();
+      const zipCode = document.getElementById('zipCode').value.trim();
+      const phone = document.getElementById('phone').value.trim();
+
+      // Validate
+      if (!firstName || !lastName || !address || !city || !zipCode || !phone) {
+        errorMessage.textContent = 'Compila tutti i campi obbligatori';
+        errorMessage.classList.remove('hidden');
+        return;
+      }
+
+      const paymentMethod = document.querySelector('input[name="payment"]:checked').value;
+
+      const shippingAddress = {
+        firstName,
+        lastName,
+        address,
+        city,
+        zipCode,
+        phone
+      };
+
+      try {
+        const response = await authenticatedFetch('/api/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            shippingAddress,
+            paymentMethod
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          showSuccess(data.order);
+          await updateCartBadge();
+        } else {
+          const error = await response.json();
+          errorMessage.textContent = error.error || 'Errore durante il checkout';
+          errorMessage.classList.remove('hidden');
+        }
+      } catch (error) {
+        console.error('Error placing order:', error);
+        errorMessage.textContent = 'Errore di connessione. Riprova.';
+        errorMessage.classList.remove('hidden');
+      }
+    }
+
+    // Show success
+    function showSuccess(order) {
+      document.getElementById('checkoutForm').classList.add('hidden');
+      document.getElementById('successMessage').classList.remove('hidden');
+      document.getElementById('orderNumber').textContent = `#${order.id}`;
+    }
+  </script>
+</body>
+</html>

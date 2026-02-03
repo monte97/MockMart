@@ -1,0 +1,50 @@
+[
+  {
+    "id": 1,
+    "email": "admin@techstore.com",
+    "password": "admin123",
+    "name": "Admin TechStore",
+    "role": "admin",
+    "address": {
+      "street": "Via Amministrazione 1",
+      "city": "Milano",
+      "zip": "20100",
+      "country": "Italia"
+    },
+    "controls": {
+      "canCheckout": true
+    }
+  },
+  {
+    "id": 2,
+    "email": "mario.rossi@example.com",
+    "password": "mario123",
+    "name": "Mario Rossi",
+    "role": "user",
+    "address": {
+      "street": "Via Roma 123",
+      "city": "Roma",
+      "zip": "00184",
+      "country": "Italia"
+    },
+    "controls": {
+      "canCheckout": true
+    }
+  },
+  {
+    "id": 3,
+    "email": "blocked@example.com",
+    "password": "blocked123",
+    "name": "Blocked User",
+    "role": "user",
+    "address": {
+      "street": "Via Test 99",
+      "city": "Napoli",
+      "zip": "80100",
+      "country": "Italia"
+    },
+    "controls": {
+      "canCheckout": false
+    }
+  }
+]
