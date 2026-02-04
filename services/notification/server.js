@@ -140,6 +140,35 @@ app.post('/config/slow-template', (req, res) => {
 });
 
 /**
+ * POST /send
+ * Simple endpoint for manual testing (unprotected)
+ * Used in debugging scenarios to verify notification service is reachable
+ */
+app.post('/send', async (req, res) => {
+  const { userId, orderId } = req.body;
+
+  // SCENARIO 1: Simulate timeout (silent failure)
+  if (simulateTimeout) {
+    console.log('SIMULATING TIMEOUT on /send - Request will hang...');
+    simulateTimeout = false;
+    return; // Never respond
+  }
+
+  console.log(`[/send] Manual test - userId: ${userId}, orderId: ${orderId}`);
+
+  // Simulate some processing
+  await new Promise(resolve => setTimeout(resolve, 50));
+
+  res.json({
+    success: true,
+    message: 'Notification sent (test endpoint)',
+    userId,
+    orderId,
+    timestamp: new Date().toISOString()
+  });
+});
+
+/**
  * POST /api/notifications/order
  * Receives notification of a new order
  *
