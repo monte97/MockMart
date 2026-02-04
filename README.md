@@ -6,7 +6,8 @@ E-commerce demo application instrumented with OpenTelemetry for observability wo
 
 ### Architecture
 
-- **Microservices**: Frontend (Nginx), Backend API (Node.js), Notification Service
+- **Microservices**: Frontend (React SPA), Backend API (Node.js), Notification Service
+- **Modern Frontend**: React 18 + Vite + React Router v6
 - **OpenTelemetry Ready**: Distributed tracing, metrics, and logging with LGTM Stack
 - **Containerized**: Docker Compose for simplified orchestration
 - **API-first**: Integrated Swagger UI for interactive documentation
@@ -14,17 +15,19 @@ E-commerce demo application instrumented with OpenTelemetry for observability wo
 ### Authentication with Keycloak
 
 - **Keycloak Integration**: Centralized identity provider (realm: `techstore`)
-- **Frontend**: keycloak-js with Authorization Code + PKCE (secure login without secret)
+- **Frontend**: React Context + keycloak-js with Authorization Code + PKCE
 - **Backend**: JWT validation via JWKS (jose library)
 - **M2M**: Client Credentials for shop-api to notification communication
 - **ABAC**: `canCheckout` attribute for checkout access control
+- **RBAC**: Admin role for product management (CRUD)
 
 ### E-commerce Functionality
 
 - Product catalog with search and filters
 - Cart management and checkout
 - Authentication system with Keycloak
-- Order management
+- Order management and history
+- Admin panel for product CRUD (admin role required)
 - Order notifications via webhook with M2M token
 
 ## Architecture Diagram
@@ -70,15 +73,16 @@ make health
 
 ## Test Users
 
-| Email | Password | Role | Checkout |
-|-------|----------|------|----------|
-| admin@techstore.com | admin123 | Admin | Enabled |
-| mario.rossi@example.com | mario123 | User | Enabled |
-| blocked@example.com | blocked123 | User | Blocked |
+| Username | Password | Role | Checkout |
+|----------|----------|------|----------|
+| admin | admin123 | Admin | Enabled |
+| mario | mario123 | User | Enabled |
+| blocked | blocked123 | User | Blocked |
 
 ## Make Commands
 
 ```bash
+# General
 make help          # Show all commands
 make up            # Start all services
 make down          # Stop all services
@@ -87,6 +91,14 @@ make clean         # Stop and remove volumes
 make status        # Show running containers
 make logs          # Follow all logs
 make health        # Check services health
+
+# Individual services (start, stop, restart, rebuild, logs)
+make start-ui      # Start shop-ui
+make rebuild-api   # Rebuild and restart shop-api
+make logs-notification  # Follow notification logs
+# Available: ui, api, notification, keycloak, gateway, grafana, postgres
+
+# Scenarios
 make traffic       # Generate test traffic
 make scenario-1    # Run Silent Failure scenario
 make scenario-2    # Run Latency Spike scenario
@@ -167,9 +179,17 @@ MockMart/
 │   │   ├── instrumentation.js # OpenTelemetry setup
 │   │   └── server.js          # Express application
 │   │
-│   ├── shop-ui/               # Frontend (Nginx + HTML/CSS/JS)
-│   │   ├── js/common.js       # Keycloak-js integration
-│   │   └── *.html             # Pages with auth
+│   ├── shop-ui/               # Frontend (React SPA)
+│   │   ├── src/
+│   │   │   ├── contexts/      # AuthContext, CartContext
+│   │   │   ├── components/    # Header, ProductCard, etc.
+│   │   │   ├── pages/         # Home, Cart, Checkout, Orders, Admin
+│   │   │   ├── hooks/         # useAuth
+│   │   │   ├── services/      # API client
+│   │   │   ├── App.jsx        # Router setup
+│   │   │   └── main.jsx       # Entry point
+│   │   ├── vite.config.js     # Vite configuration
+│   │   └── Dockerfile         # Multi-stage build (Node + Nginx)
 │   │
 │   ├── notification/          # Notification service (Node.js)
 │   │   ├── instrumentation.js # OpenTelemetry setup
