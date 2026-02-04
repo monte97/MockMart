@@ -6,6 +6,10 @@ const axios = require('axios');
 const swaggerUi = require('swagger-ui-express');
 const swaggerJSDoc = require('swagger-jsdoc');
 const { Pool } = require('pg');
+const { trace } = require('@opentelemetry/api');
+
+// Logger with OpenTelemetry - sends logs via OTLP with trace correlation
+const logger = require('./lib/logger');
 
 // Import authentication middleware
 const { requireAuth, optionalAuth } = require('./middleware/auth');
@@ -597,6 +601,8 @@ app.post('/api/checkout', requireAuth, async (req, res) => {
   // Calculate total
   const total = cart.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
 
+  logger.info({ userId: user.id, itemCount: cart.length, total }, 'Processing checkout');
+
   // Start database transaction
   const client = await pool.connect();
 
@@ -622,6 +628,9 @@ app.post('/api/checkout', requireAuth, async (req, res) => {
     const orderId = orderResult.rows[0].id;
     const createdAt = orderResult.rows[0].created_at;
 
+    // Add order_id to current span for tracing (custom instrumentation)
+    trace.getActiveSpan()?.setAttribute('order_id', orderId);
+
     // Insert order items
     for (const item of cart) {
       await client.query(
@@ -633,7 +642,7 @@ app.post('/api/checkout', requireAuth, async (req, res) => {
 
     await client.query('COMMIT');
 
-    console.log(`Order ${orderId} saved to database`);
+    logger.info({ orderId, userId: user.id, total }, 'Order saved to database');
 
     // Clear cart
     delete carts[sessionId];
@@ -657,6 +666,8 @@ app.post('/api/checkout', requireAuth, async (req, res) => {
 
     // Send notification to notification service using service token (M2M)
     try {
+      logger.info({ orderId: order.id, url: NOTIFICATION_SERVICE_URL }, 'Calling notification service');
+
       const token = await getServiceToken();
 
       await axios.post(`${NOTIFICATION_SERVICE_URL}/api/notifications/order`, {
@@ -675,10 +686,10 @@ app.post('/api/checkout', requireAuth, async (req, res) => {
         timeout: 5000 // 5 second timeout
       });
 
-      console.log(`Notification sent for order #${order.id}`);
+      logger.info({ orderId: order.id }, 'Notification sent successfully');
     } catch (error) {
       // Log the error but don't fail the checkout
-      console.error('Failed to send notification:', error.message);
+      logger.error({ orderId: order.id, error: error.message }, 'Failed to send notification');
       // Checkout continues successfully even if notification fails
     }
 
@@ -686,7 +697,7 @@ app.post('/api/checkout', requireAuth, async (req, res) => {
 
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Checkout failed:', error);
+    logger.error({ error: error.message }, 'Checkout failed');
     res.status(500).json({ error: 'Checkout failed', details: error.message });
   } finally {
     client.release();

@@ -2,6 +2,9 @@ const express = require('express');
 const session = require('express-session');
 const { createRemoteJWKSet, jwtVerify } = require('jose');
 
+// Logger with OpenTelemetry - sends logs via OTLP with trace correlation
+const logger = require('./lib/logger');
+
 const app = express();
 const PORT = process.env.PORT || 3009;
 
@@ -213,39 +216,30 @@ app.post('/api/notifications/order', requireAuth, async (req, res) => {
   const templateType = isSlowTemplate ? 'order_confirmation_premium' : 'order_confirmation_basic';
   const renderDelay = isSlowTemplate ? 3000 : 50; // 3s vs 50ms
 
-  console.log('\n===== NEW ORDER NOTIFICATION =====');
-  console.log(`Auth: Service Account (from: ${callingService})`);
-  console.log(`Token subject: ${auth.subject}`);
-  console.log(`Order ID: ${orderId}`);
-  console.log(`User: ${userName} (${userEmail})`);
-  console.log(`User ID: ${userId}`);
-  console.log(`Total: EUR ${total}`);
-  console.log(`Items count: ${items ? items.length : 0}`);
-  console.log(`Template: ${templateType} (render time: ${renderDelay}ms)`);
-
-  if (items && items.length > 0) {
-    console.log('\nItems:');
-    items.forEach(item => {
-      console.log(`  - ${item.productName} x${item.quantity} @ EUR ${item.price}`);
-    });
-  }
+  // Log with pino for trace correlation
+  logger.info({
+    orderId,
+    userId,
+    userEmail,
+    userName,
+    total,
+    itemsCount: items ? items.length : 0,
+    template: templateType,
+    callingService
+  }, 'Processing order notification');
 
   // Simulate template rendering
   if (isSlowTemplate) {
-    console.log(`Rendering ${templateType}...`);
+    logger.info({ orderId, template: templateType }, 'Rendering premium template...');
   }
 
   await new Promise(resolve => setTimeout(resolve, renderDelay));
 
   if (isSlowTemplate) {
-    console.log(`Template rendering took ${renderDelay}ms`);
+    logger.warn({ orderId, renderTimeMs: renderDelay }, 'Template rendering took long');
   }
 
-  console.log('\nSimulating email notification...');
-  console.log(`To: ${userEmail}`);
-  console.log(`Subject: Order Confirmation #${orderId}`);
-  console.log('Body: Thank you for your order! We will process it soon.');
-  console.log('===================================\n');
+  logger.info({ orderId, userEmail }, 'Email notification sent');
 
   const notificationId = `notif-${Date.now()}-${orderId}`;
 

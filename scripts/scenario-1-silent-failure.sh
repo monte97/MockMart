@@ -75,9 +75,9 @@ echo "🔍 Next steps:"
 echo "  1. Open Grafana: http://localhost:3005"
 echo "  2. Go to Explore → Tempo"
 if [ -n "$ORDER_ID" ]; then
-  echo "  3. Search for traces with order_id=$ORDER_ID"
+  echo "  3. Query TraceQL: { span.order_id = $ORDER_ID }"
 fi
-echo "  4. Observe span 'HTTP POST /send' with ERROR status"
+echo "  4. Observe the trace and find span 'HTTP POST' with ERROR status"
 echo ""
 
 # Disable timeout simulation
