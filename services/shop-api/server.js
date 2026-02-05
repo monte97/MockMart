@@ -689,7 +689,18 @@ app.post('/api/checkout', requireAuth, async (req, res) => {
       logger.info({ orderId: order.id }, 'Notification sent successfully');
     } catch (error) {
       // Log the error but don't fail the checkout
-      logger.error({ orderId: order.id, error: error.message }, 'Failed to send notification');
+      const errorDetails = {
+        orderId: order.id,
+        error: error.message
+      };
+
+      // Include response details if available (e.g., 400 Bad Request)
+      if (error.response) {
+        errorDetails.status = error.response.status;
+        errorDetails.responseError = error.response.data?.error || error.response.data?.message;
+      }
+
+      logger.error(errorDetails, 'Failed to send notification');
       // Checkout continues successfully even if notification fails
     }
 

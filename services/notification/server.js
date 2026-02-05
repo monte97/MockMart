@@ -88,6 +88,7 @@ async function requireAuth(req, res, next) {
 
 // Simulation state for demo scenarios
 let simulateTimeout = false;
+let simulateInvalidEmail = false;
 let slowTemplateUsers = new Set();
 
 // Middleware
@@ -119,11 +120,22 @@ app.post('/config/simulate-timeout', (req, res) => {
 });
 
 /**
+ * POST /config/simulate-invalid-email
+ * Enable invalid email simulation for next request
+ */
+app.post('/config/simulate-invalid-email', (req, res) => {
+  simulateInvalidEmail = true;
+  console.log('SIMULATION: Invalid email mode enabled for next request');
+  res.json({ success: true, message: 'Invalid email simulation enabled' });
+});
+
+/**
  * POST /config/reset
  * Reset all simulations
  */
 app.post('/config/reset', (req, res) => {
   simulateTimeout = false;
+  simulateInvalidEmail = false;
   slowTemplateUsers.clear();
   console.log('SIMULATION: All simulations reset');
   res.json({ success: true, message: 'Simulations reset' });
@@ -202,16 +214,40 @@ app.post('/api/notifications/order', requireAuth, async (req, res) => {
     });
   }
 
+  // Log request received (before any simulation)
+  logger.info({
+    orderId,
+    userId,
+    userEmail
+  }, 'Received order notification request');
+
   // SCENARIO 1: Simulate timeout (silent failure)
   if (simulateTimeout) {
-    console.log('SIMULATING TIMEOUT - Request will hang...');
-    // Reset flag after triggering once
+    logger.warn({ orderId, userEmail }, 'Processing notification - this may take a while...');
     simulateTimeout = false;
     // Never respond - will cause timeout in shop-api
     return;
   }
 
-  // SCENARIO 2: Simulate slow template rendering (latency spike)
+  // SCENARIO 2: Simulate invalid email (validation failure)
+  if (simulateInvalidEmail) {
+    simulateInvalidEmail = false;
+    logger.info({ orderId, userEmail }, 'Validating email address...');
+    logger.error({
+      orderId,
+      userEmail,
+      reason: 'Email validation failed: invalid domain or format'
+    }, 'Cannot send notification - invalid email address');
+
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid email address',
+      message: `Cannot send notification to ${userEmail}: invalid email format`,
+      orderId
+    });
+  }
+
+  // SCENARIO 3: Simulate slow template rendering (latency spike)
   const isSlowTemplate = slowTemplateUsers.has(String(userId));
   const templateType = isSlowTemplate ? 'order_confirmation_premium' : 'order_confirmation_basic';
   const renderDelay = isSlowTemplate ? 3000 : 50; // 3s vs 50ms

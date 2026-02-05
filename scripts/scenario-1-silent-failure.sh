@@ -1,7 +1,7 @@
 #!/bin/bash
 
-echo "🎬 Scenario 1: Silent Failure Demo"
-echo "=================================="
+echo "🎬 Scenario 1: Notification Failure Demo"
+echo "========================================="
 echo ""
 
 KEYCLOAK_URL="http://localhost:8080"
@@ -21,11 +21,11 @@ fi
 echo "✅ Authenticated as mario"
 echo ""
 
-# Enable timeout simulation
-echo "2️⃣  Enabling timeout simulation on notification service..."
+# Enable invalid email simulation
+echo "2️⃣  Enabling invalid email simulation on notification service..."
 curl -s -X POST "$NOTIFICATION_URL/config/reset" > /dev/null
-curl -s -X POST "$NOTIFICATION_URL/config/simulate-timeout" > /dev/null
-echo "✅ Timeout mode enabled"
+curl -s -X POST "$NOTIFICATION_URL/config/simulate-invalid-email" > /dev/null
+echo "✅ Invalid email mode enabled"
 echo ""
 
 # Create cookie file for session
@@ -41,8 +41,8 @@ curl -s -c "$COOKIE_FILE" -b "$COOKIE_FILE" -X POST "$API_URL/api/cart" \
 echo "✅ Item added to cart"
 echo ""
 
-# Trigger checkout (will timeout but return 200)
-echo "4️⃣  Triggering checkout (will fail silently)..."
+# Trigger checkout (notification will fail with 400)
+echo "4️⃣  Triggering checkout (notification will fail)..."
 RESPONSE=$(curl -s -c "$COOKIE_FILE" -b "$COOKIE_FILE" -X POST "$API_URL/api/checkout" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
@@ -69,7 +69,7 @@ if [ -n "$ORDER_ID" ]; then
 else
   echo "  - Order response: $RESPONSE"
 fi
-echo "  - Notification sent: ❌ NO (timeout)"
+echo "  - Notification sent: ❌ NO (invalid email error)"
 echo ""
 echo "🔍 Next steps:"
 echo "  1. Open Grafana: http://localhost:3005"
@@ -77,10 +77,11 @@ echo "  2. Go to Explore → Tempo"
 if [ -n "$ORDER_ID" ]; then
   echo "  3. Query TraceQL: { span.order_id = $ORDER_ID }"
 fi
-echo "  4. Observe the trace and find span 'HTTP POST' with ERROR status"
+echo "  4. Observe the trace and find the failed notification span"
+echo "  5. Click 'View Logs' to see the error details"
 echo ""
 
-# Disable timeout simulation
+# Reset simulation
 echo "5️⃣  Resetting notification service..."
 curl -s -X POST "$NOTIFICATION_URL/config/reset" > /dev/null
 echo "✅ Normal mode restored"
