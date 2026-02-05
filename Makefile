@@ -9,19 +9,30 @@
         start-grafana stop-grafana restart-grafana \
         start-gateway stop-gateway restart-gateway rebuild-gateway \
         start-postgres stop-postgres restart-postgres \
-        start-keycloak-postgres stop-keycloak-postgres restart-keycloak-postgres
+        start-keycloak-postgres stop-keycloak-postgres restart-keycloak-postgres \
+        up-otel-keycloak down-otel-keycloak \
+        up-data-management down-data-management clean-data-management check-sampling \
+        health-data-management logs-collector logs-tempo logs-prometheus
 
 # Default target
 help:
 	@echo "📚 OpenTelemetry Correlation Demo - Available Commands"
 	@echo ""
 	@echo "🚀 Stack Management:"
-	@echo "  make up              - Start all services"
-	@echo "  make down            - Stop all services"
-	@echo "  make restart         - Restart all services"
-	@echo "  make clean           - Stop and remove volumes"
-	@echo "  make status          - Show running containers"
-	@echo "  make init-keycloak   - Initialize Keycloak realm"
+	@echo "  make up                    - Start all services (grafana-lgtm)"
+	@echo "  make up-otel-keycloak      - Start with Keycloak OTEL instrumentation"
+	@echo "  make up-data-management    - Start with data management stack"
+	@echo "  make down                  - Stop all services"
+	@echo "  make clean                 - Stop and remove volumes"
+	@echo "  make status                - Show running containers"
+	@echo ""
+	@echo "📊 Data Management Stack:"
+	@echo "  make up-data-management    - Start (OTel Collector + Tempo + Prometheus + Loki + Grafana)"
+	@echo "  make down-data-management  - Stop stack"
+	@echo "  make clean-data-management - Stop + rimuovi volumes"
+	@echo "  make health-data-management - Check health status"
+	@echo "  make check-sampling        - Check tail sampling metrics"
+	@echo "  make logs-collector        - Follow OTel Collector logs"
 	@echo ""
 	@echo "📋 Logs:"
 	@echo "  make logs            - Follow all logs"
@@ -348,3 +359,117 @@ rebuild-inventory:
 
 logs-inventory:
 	docker compose logs -f inventory-service
+
+# ============================================
+# OTEL KEYCLOAK VARIANT
+# ============================================
+
+up-otel-keycloak:
+	@echo "🚀 Starting stack with Keycloak OpenTelemetry instrumentation..."
+	@echo "   (Uses Keycloak's native OTEL support - no Java agent needed)"
+	docker compose -f docker-compose.yml -f docker-compose.otel-keycloak.yml up -d
+	@echo ""
+	@echo "⏳ Waiting for services to be healthy..."
+	@sleep 15
+	@make health
+	@echo ""
+	@echo "✅ Stack is ready with Keycloak instrumentation!"
+	@echo ""
+	@echo "📍 Keycloak traces will appear in Grafana"
+	@echo "   View in Grafana: http://localhost:3005 → Explore → Tempo"
+
+down-otel-keycloak:
+	@echo "🛑 Stopping all services (OTEL Keycloak variant)..."
+	docker compose -f docker-compose.yml -f docker-compose.otel-keycloak.yml down
+
+# ============================================
+# DATA MANAGEMENT STACK (componenti separati)
+# ============================================
+# Stack completo con:
+# - OTel Collector: tail sampling (90% riduzione)
+# - Tempo: retention 7 giorni
+# - Prometheus: alert rules + metriche collector
+# - Loki: retention 7 giorni
+# - Grafana: dashboard pre-configurata
+
+up-data-management:
+	@echo "🚀 Starting Data Management stack..."
+	@echo ""
+	@echo "📦 Componenti:"
+	@echo "   - OTel Collector (tail sampling: 100% errors, 100% slow, 10% rest)"
+	@echo "   - Tempo (retention: 7 giorni)"
+	@echo "   - Prometheus (alert rules per collector health)"
+	@echo "   - Loki (retention: 7 giorni)"
+	@echo "   - Grafana (dashboard pre-configurata)"
+	@echo ""
+	docker compose -f docker-compose.data-management.yml up -d
+	@echo ""
+	@echo "⏳ Waiting for services to be healthy..."
+	@sleep 20
+	@make health-data-management
+	@echo ""
+	@echo "✅ Stack Data Management pronto!"
+	@echo ""
+	@echo "📍 Access points:"
+	@echo "   - Shop UI:       http://localhost:3000"
+	@echo "   - Grafana:       http://localhost:3005"
+	@echo "   - Prometheus:    http://localhost:9090"
+	@echo "   - Tempo:         http://localhost:3200"
+	@echo "   - Loki:          http://localhost:3100"
+	@echo "   - Collector:     http://localhost:8888/metrics"
+	@echo ""
+	@echo "📊 Dashboard: Grafana → Data Management → OTel Collector"
+	@echo "📈 Verifica: make check-sampling"
+
+down-data-management:
+	@echo "🛑 Stopping Data Management stack..."
+	docker compose -f docker-compose.data-management.yml down
+
+clean-data-management:
+	@echo "🧹 Cleaning Data Management stack (include volumes)..."
+	docker compose -f docker-compose.data-management.yml down -v
+	@echo "✅ Clean complete"
+
+check-sampling:
+	@echo "📊 Checking tail sampling metrics..."
+	@echo ""
+	@echo "Span ricevuti:"
+	@curl -s http://localhost:8888/metrics 2>/dev/null | grep "otelcol_receiver_accepted_spans" | head -5 || echo "  Collector non raggiungibile su :8888"
+	@echo ""
+	@echo "Span processati dal tail_sampling:"
+	@curl -s http://localhost:8888/metrics 2>/dev/null | grep "otelcol_processor.*tail_sampling" | head -10 || echo "  Metriche tail_sampling non trovate"
+	@echo ""
+	@echo "💡 Genera traffico con: make traffic"
+	@echo "   Poi ricontrolla: make check-sampling"
+
+health-data-management:
+	@echo "🏥 Health Status (Data Management Stack):"
+	@echo -n "  OTel Collector:       "
+	@curl -sf http://localhost:13133/ready > /dev/null 2>&1 && echo "✅ Healthy" || echo "❌ Unhealthy"
+	@echo -n "  Tempo:                "
+	@curl -sf http://localhost:3200/ready > /dev/null 2>&1 && echo "✅ Healthy" || echo "❌ Unhealthy"
+	@echo -n "  Prometheus:           "
+	@curl -sf http://localhost:9090/-/healthy > /dev/null 2>&1 && echo "✅ Healthy" || echo "❌ Unhealthy"
+	@echo -n "  Loki:                 "
+	@curl -sf http://localhost:3100/ready > /dev/null 2>&1 && echo "✅ Healthy" || echo "❌ Unhealthy"
+	@echo -n "  Grafana:              "
+	@curl -sf http://localhost:3005/api/health > /dev/null 2>&1 && echo "✅ Healthy" || echo "❌ Unhealthy"
+	@echo -n "  Keycloak:             "
+	@curl -sf http://localhost:8080/health/ready > /dev/null 2>&1 && echo "✅ Healthy" || echo "❌ Unhealthy"
+	@echo -n "  Shop API:             "
+	@curl -s http://localhost:3001/api/products > /dev/null 2>&1 && echo "✅ Healthy" || echo "❌ Unhealthy"
+	@echo -n "  Notification Service: "
+	@curl -s http://localhost:3009/health > /dev/null 2>&1 && echo "✅ Healthy" || echo "❌ Unhealthy"
+	@echo -n "  Payment Service:      "
+	@curl -s http://localhost:3010/health > /dev/null 2>&1 && echo "✅ Healthy" || echo "❌ Unhealthy"
+	@echo -n "  Inventory Service:    "
+	@curl -s http://localhost:3011/health > /dev/null 2>&1 && echo "✅ Healthy" || echo "❌ Unhealthy"
+
+logs-collector:
+	docker compose -f docker-compose.data-management.yml logs -f otel-collector
+
+logs-tempo:
+	docker compose -f docker-compose.data-management.yml logs -f tempo
+
+logs-prometheus:
+	docker compose -f docker-compose.data-management.yml logs -f prometheus

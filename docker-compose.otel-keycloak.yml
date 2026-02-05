@@ -1,0 +1,66 @@
+# Docker Compose override to add OpenTelemetry instrumentation to Keycloak
+# Uses Keycloak's native OpenTelemetry support (no Java agent needed)
+# Usage: docker compose -f docker-compose.yml -f docker-compose.otel-keycloak.yml up
+
+services:
+  keycloak:
+    # Enable tracing + experimental features (logs, metrics)
+    command: >
+      start-dev --import-realm
+      --tracing-enabled=true
+      --features=opentelemetry-logs,opentelemetry-metrics
+      --telemetry-logs-enabled=true
+      --metrics-enabled=true
+      --telemetry-metrics-enabled=true
+    environment:
+      # Database config (inherited but must be re-declared)
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_PORT: 80
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_RELATIVE_PATH: /auth
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+
+      # =============================================
+      # OpenTelemetry - Global Settings
+      # =============================================
+      KC_TELEMETRY_ENDPOINT: http://grafana-lgtm:4317
+      KC_TELEMETRY_PROTOCOL: grpc
+      KC_TELEMETRY_SERVICE_NAME: keycloak
+      KC_TELEMETRY_RESOURCE_ATTRIBUTES: service.namespace=mockmart,deployment.environment=demo
+
+      # =============================================
+      # OpenTelemetry - Tracing (STABLE)
+      # =============================================
+      KC_TRACING_ENABLED: "true"
+      KC_TRACING_SAMPLER_TYPE: always_on
+      # Include trace IDs in console logs for correlation
+      KC_LOG_CONSOLE_INCLUDE_TRACE: "true"
+
+      # =============================================
+      # OpenTelemetry - Logs (PREVIEW)
+      # Requires: --features=opentelemetry-logs
+      # =============================================
+      KC_TELEMETRY_LOGS_ENABLED: "true"
+      KC_TELEMETRY_LOGS_LEVEL: info
+
+      # =============================================
+      # OpenTelemetry - Metrics (EXPERIMENTAL)
+      # Requires: --features=opentelemetry-metrics
+      #           --metrics-enabled=true
+      # =============================================
+      KC_METRICS_ENABLED: "true"
+      KC_TELEMETRY_METRICS_ENABLED: "true"
+      KC_TELEMETRY_METRICS_INTERVAL: 30s
+
+    depends_on:
+      keycloak-postgres:
+        condition: service_healthy
+      grafana-lgtm:
+        condition: service_healthy

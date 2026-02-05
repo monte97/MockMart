@@ -1,0 +1,108 @@
+# OpenTelemetry Collector - Data Management Config
+# Tail sampling per ridurre volume dati ~90%
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+        cors:
+          allowed_origins:
+            - http://*
+            - https://*
+
+processors:
+  batch:
+    timeout: 10s
+    send_batch_size: 1024
+
+  # Memory limiter per evitare OOM
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+
+  # ===========================================
+  # TAIL SAMPLING
+  # ===========================================
+  tail_sampling:
+    decision_wait: 10s
+    num_traces: 50000
+    expected_new_traces_per_sec: 100
+    policies:
+      # Policy 1: KEEP tutti gli errori
+      - name: errors-policy
+        type: status_code
+        status_code:
+          status_codes: [ERROR]
+
+      # Policy 2: KEEP request lente (>1s)
+      - name: latency-policy
+        type: latency
+        latency:
+          threshold_ms: 1000
+
+      # Policy 3: KEEP audit events
+      - name: audit-policy
+        type: string_attribute
+        string_attribute:
+          key: audit.event
+          values: ["true"]
+          enabled_regex_matching: false
+
+      # Policy 4: SAMPLE 10% resto
+      - name: probabilistic-policy
+        type: probabilistic
+        probabilistic:
+          sampling_percentage: 10
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+exporters:
+  # Traces -> Tempo
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+
+  # Metrics -> Prometheus (via remote write)
+  prometheusremotewrite:
+    endpoint: http://prometheus:9090/api/v1/write
+    tls:
+      insecure: true
+
+  # Logs -> Loki
+  loki:
+    endpoint: http://loki:3100/loki/api/v1/push
+
+  # Debug (opzionale)
+  debug:
+    verbosity: basic
+
+service:
+  extensions: [health_check]
+
+  telemetry:
+    metrics:
+      level: detailed
+      address: 0.0.0.0:8888
+
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, tail_sampling, batch]
+      exporters: [otlp/tempo]
+
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [prometheusremotewrite]
+
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [loki]
