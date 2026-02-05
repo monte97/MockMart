@@ -1,5 +1,7 @@
-.PHONY: help up down restart logs logs-api logs-notification logs-grafana logs-keycloak health \
-        scenario-1 scenario-2 traffic grafana shop keycloak clean status init-keycloak \
+.PHONY: help up down restart logs logs-api logs-notification logs-payment logs-inventory logs-grafana logs-keycloak health \
+        scenario-1 scenario-2 scenario-3 traffic grafana shop keycloak clean status init-keycloak \
+        start-payment stop-payment restart-payment rebuild-payment \
+        start-inventory stop-inventory restart-inventory rebuild-inventory \
         start-ui stop-ui restart-ui rebuild-ui logs-ui \
         start-api stop-api restart-api rebuild-api \
         start-notification stop-notification restart-notification rebuild-notification \
@@ -31,6 +33,7 @@ help:
 	@echo "🧪 Scenarios:"
 	@echo "  make scenario-1      - Run Silent Failure scenario"
 	@echo "  make scenario-2      - Run Latency Spike scenario"
+	@echo "  make scenario-3      - Run Fan-out Debug scenario (complex)"
 	@echo "  make traffic         - Generate baseline traffic (50 requests)"
 	@echo ""
 	@echo "🔧 Single Service Management:"
@@ -73,6 +76,8 @@ up:
 	@echo "  - Grafana UI:   http://localhost:3005"
 	@echo "  - Keycloak:     http://localhost:8080 (admin/admin)"
 	@echo "  - Notification: http://localhost:3009/health"
+	@echo "  - Payment:      http://localhost:3010/health"
+	@echo "  - Inventory:    http://localhost:3011/health"
 	@echo ""
 	@echo "🔐 Test credentials:"
 	@echo "  - admin@techstore.com / admin123 (Admin)"
@@ -126,6 +131,10 @@ scenario-2:
 	@echo "🎬 Running Scenario 2: Latency Spike..."
 	@bash ./scripts/scenario-2-latency-spike.sh
 
+scenario-3:
+	@echo "🎬 Running Scenario 3: Fan-out Debug (Complex)..."
+	@bash ./scripts/scenario-3-fanout-debug.sh
+
 traffic:
 	@echo "🚦 Generating baseline traffic..."
 	@bash ./scripts/generate-traffic.sh
@@ -152,17 +161,21 @@ keycloak:
 # Health check
 health:
 	@echo "🏥 Health Status:"
-	@echo -n "  Keycloak:            "
+	@echo -n "  Keycloak:             "
 	@curl -sf http://localhost:8080/health/ready > /dev/null 2>&1 && echo "✅ Healthy" || echo "❌ Unhealthy"
-	@echo -n "  Grafana LGTM:        "
+	@echo -n "  Grafana LGTM:         "
 	@curl -s http://localhost:3005/api/health > /dev/null 2>&1 && echo "✅ Healthy" || echo "❌ Unhealthy"
-	@echo -n "  Shop API:            "
+	@echo -n "  Shop API:             "
 	@curl -s http://localhost:3001/api/products > /dev/null 2>&1 && echo "✅ Healthy" || echo "❌ Unhealthy"
 	@echo -n "  Notification Service: "
 	@curl -s http://localhost:3009/health > /dev/null 2>&1 && echo "✅ Healthy" || echo "❌ Unhealthy"
-	@echo -n "  PostgreSQL (orders): "
+	@echo -n "  Payment Service:      "
+	@curl -s http://localhost:3010/health > /dev/null 2>&1 && echo "✅ Healthy" || echo "❌ Unhealthy"
+	@echo -n "  Inventory Service:    "
+	@curl -s http://localhost:3011/health > /dev/null 2>&1 && echo "✅ Healthy" || echo "❌ Unhealthy"
+	@echo -n "  PostgreSQL (orders):  "
 	@docker exec postgres-orders pg_isready -U demo -d orders > /dev/null 2>&1 && echo "✅ Healthy" || echo "❌ Unhealthy"
-	@echo -n "  PostgreSQL (keycloak): "
+	@echo -n "  PostgreSQL (keycloak):"
 	@docker exec keycloak-postgres pg_isready -U keycloak -d keycloak > /dev/null 2>&1 && echo "✅ Healthy" || echo "❌ Unhealthy"
 
 # ============================================
@@ -295,3 +308,43 @@ stop-keycloak-postgres:
 restart-keycloak-postgres:
 	@echo "🔄 Restarting keycloak-postgres..."
 	docker compose restart keycloak-postgres
+
+# Payment Service
+start-payment:
+	@echo "🚀 Starting payment-service..."
+	docker compose up -d payment-service
+
+stop-payment:
+	@echo "🛑 Stopping payment-service..."
+	docker compose stop payment-service
+
+restart-payment:
+	@echo "🔄 Restarting payment-service..."
+	docker compose restart payment-service
+
+rebuild-payment:
+	@echo "🔨 Rebuilding payment-service..."
+	docker compose up -d --build payment-service
+
+logs-payment:
+	docker compose logs -f payment-service
+
+# Inventory Service
+start-inventory:
+	@echo "🚀 Starting inventory-service..."
+	docker compose up -d inventory-service
+
+stop-inventory:
+	@echo "🛑 Stopping inventory-service..."
+	docker compose stop inventory-service
+
+restart-inventory:
+	@echo "🔄 Restarting inventory-service..."
+	docker compose restart inventory-service
+
+rebuild-inventory:
+	@echo "🔨 Rebuilding inventory-service..."
+	docker compose up -d --build inventory-service
+
+logs-inventory:
+	docker compose logs -f inventory-service

@@ -37,6 +37,8 @@ const PORT = process.env.PORT || 3001;
 
 // Configuration
 const NOTIFICATION_SERVICE_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://notification-service:3009';
+const PAYMENT_SERVICE_URL = process.env.PAYMENT_SERVICE_URL || 'http://payment-service:3010';
+const INVENTORY_SERVICE_URL = process.env.INVENTORY_SERVICE_URL || 'http://inventory-service:3011';
 
 // Helper function for async delay
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -603,7 +605,148 @@ app.post('/api/checkout', requireAuth, async (req, res) => {
 
   logger.info({ userId: user.id, itemCount: cart.length, total }, 'Processing checkout');
 
-  // Start database transaction
+  // Get the current span for adding attributes
+  const currentSpan = trace.getActiveSpan();
+
+  // Prepare items for inventory and payment services
+  const items = cart.map(item => ({
+    productId: item.productId,
+    productName: item.product.name,
+    quantity: item.quantity,
+    price: item.product.price
+  }));
+
+  // Get service token for M2M calls
+  let token;
+  try {
+    token = await getServiceToken();
+  } catch (error) {
+    logger.error({ error: error.message }, 'Failed to get service token');
+    return res.status(500).json({ error: 'Checkout failed', details: 'Authentication error' });
+  }
+
+  // Step 1: Check inventory availability
+  logger.info({ userId: user.id, itemCount: items.length, url: INVENTORY_SERVICE_URL }, 'Checking inventory availability');
+
+  let inventoryCheckResult;
+  try {
+    const inventoryCheckResponse = await axios.post(`${INVENTORY_SERVICE_URL}/api/inventory/check`, {
+      items: items.map(item => ({
+        productId: item.productId,
+        quantity: item.quantity
+      }))
+    }, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 5000
+    });
+
+    inventoryCheckResult = inventoryCheckResponse.data;
+    logger.info({ userId: user.id, available: inventoryCheckResult.available }, 'Inventory check completed');
+
+    if (!inventoryCheckResult.available) {
+      logger.warn({ userId: user.id, unavailableItems: inventoryCheckResult.unavailableItems }, 'Inventory check failed - items not available');
+      return res.status(400).json({
+        error: 'Some items are not available in stock',
+        unavailableItems: inventoryCheckResult.unavailableItems
+      });
+    }
+  } catch (error) {
+    const errorDetails = {
+      userId: user.id,
+      error: error.message
+    };
+    if (error.response) {
+      errorDetails.status = error.response.status;
+      errorDetails.responseError = error.response.data?.error || error.response.data?.message;
+    }
+    logger.error(errorDetails, 'Inventory check failed');
+    return res.status(500).json({ error: 'Checkout failed', details: 'Unable to verify inventory availability' });
+  }
+
+  // Step 2: Process payment
+  logger.info({ userId: user.id, total, paymentMethod, url: PAYMENT_SERVICE_URL }, 'Processing payment');
+
+  let paymentResult;
+  try {
+    const paymentResponse = await axios.post(`${PAYMENT_SERVICE_URL}/api/payments/process`, {
+      userId: user.id,
+      userEmail: user.email,
+      amount: total,
+      currency: 'EUR',
+      paymentMethod: paymentMethod,
+      items: items
+    }, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 5000
+    });
+
+    paymentResult = paymentResponse.data;
+    logger.info({ userId: user.id, transactionId: paymentResult.transactionId, status: paymentResult.status }, 'Payment processed successfully');
+
+    // Add payment transaction ID to span for tracing
+    currentSpan?.setAttribute('payment_transaction_id', paymentResult.transactionId);
+
+  } catch (error) {
+    const errorDetails = {
+      userId: user.id,
+      error: error.message
+    };
+    if (error.response) {
+      errorDetails.status = error.response.status;
+      errorDetails.responseError = error.response.data?.error || error.response.data?.message;
+    }
+    logger.error(errorDetails, 'Payment processing failed');
+    return res.status(402).json({ error: 'Payment failed', details: error.response?.data?.error || 'Unable to process payment' });
+  }
+
+  // Step 3: Reserve inventory
+  logger.info({ userId: user.id, itemCount: items.length, url: INVENTORY_SERVICE_URL }, 'Reserving inventory');
+
+  let inventoryReservationResult;
+  try {
+    const inventoryReserveResponse = await axios.post(`${INVENTORY_SERVICE_URL}/api/inventory/reserve`, {
+      userId: user.id,
+      paymentTransactionId: paymentResult.transactionId,
+      items: items.map(item => ({
+        productId: item.productId,
+        quantity: item.quantity
+      }))
+    }, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 5000
+    });
+
+    inventoryReservationResult = inventoryReserveResponse.data;
+    logger.info({ userId: user.id, reservationId: inventoryReservationResult.reservationId }, 'Inventory reserved successfully');
+
+    // Add inventory reservation ID to span for tracing
+    currentSpan?.setAttribute('inventory_reservation_id', inventoryReservationResult.reservationId);
+
+  } catch (error) {
+    // Log error but continue - payment already processed
+    const errorDetails = {
+      userId: user.id,
+      paymentTransactionId: paymentResult.transactionId,
+      error: error.message
+    };
+    if (error.response) {
+      errorDetails.status = error.response.status;
+      errorDetails.responseError = error.response.data?.error || error.response.data?.message;
+    }
+    logger.error(errorDetails, 'Inventory reservation failed - payment was processed, continuing with order');
+    // Do not return error - continue with order since payment was already processed
+  }
+
+  // Step 4: Save order to database
   const client = await pool.connect();
 
   try {
@@ -629,7 +772,7 @@ app.post('/api/checkout', requireAuth, async (req, res) => {
     const createdAt = orderResult.rows[0].created_at;
 
     // Add order_id to current span for tracing (custom instrumentation)
-    trace.getActiveSpan()?.setAttribute('order_id', orderId);
+    currentSpan?.setAttribute('order_id', orderId);
 
     // Insert order items
     for (const item of cart) {
@@ -642,7 +785,7 @@ app.post('/api/checkout', requireAuth, async (req, res) => {
 
     await client.query('COMMIT');
 
-    logger.info({ orderId, userId: user.id, total }, 'Order saved to database');
+    logger.info({ orderId, userId: user.id, total, paymentTransactionId: paymentResult.transactionId, inventoryReservationId: inventoryReservationResult?.reservationId }, 'Order saved to database');
 
     // Clear cart
     delete carts[sessionId];
@@ -651,24 +794,19 @@ app.post('/api/checkout', requireAuth, async (req, res) => {
     const order = {
       id: orderId,
       userId: user.id,
-      items: cart.map(item => ({
-        productId: item.productId,
-        productName: item.product.name,
-        quantity: item.quantity,
-        price: item.product.price
-      })),
+      items: items,
       total,
       shippingAddress,
       paymentMethod,
       status: 'pending',
-      createdAt: createdAt.toISOString()
+      createdAt: createdAt.toISOString(),
+      paymentTransactionId: paymentResult.transactionId,
+      inventoryReservationId: inventoryReservationResult?.reservationId
     };
 
-    // Send notification to notification service using service token (M2M)
+    // Step 5: Send notification to notification service using service token (M2M)
     try {
       logger.info({ orderId: order.id, url: NOTIFICATION_SERVICE_URL }, 'Calling notification service');
-
-      const token = await getServiceToken();
 
       await axios.post(`${NOTIFICATION_SERVICE_URL}/api/notifications/order`, {
         orderId: order.id,
@@ -677,13 +815,15 @@ app.post('/api/checkout', requireAuth, async (req, res) => {
         userName: user.name,
         total: order.total,
         items: order.items,
-        timestamp: order.createdAt
+        timestamp: order.createdAt,
+        paymentTransactionId: paymentResult.transactionId,
+        inventoryReservationId: inventoryReservationResult?.reservationId
       }, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        timeout: 5000 // 5 second timeout
+        timeout: 5000
       });
 
       logger.info({ orderId: order.id }, 'Notification sent successfully');
@@ -708,7 +848,7 @@ app.post('/api/checkout', requireAuth, async (req, res) => {
 
   } catch (error) {
     await client.query('ROLLBACK');
-    logger.error({ error: error.message }, 'Checkout failed');
+    logger.error({ error: error.message, paymentTransactionId: paymentResult.transactionId }, 'Checkout failed - order not saved but payment was processed');
     res.status(500).json({ error: 'Checkout failed', details: error.message });
   } finally {
     client.release();

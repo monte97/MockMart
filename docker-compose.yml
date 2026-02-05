@@ -66,6 +66,8 @@ services:
       - NODE_ENV=production
       - PORT=3001
       - NOTIFICATION_SERVICE_URL=http://notification-service:3009
+      - PAYMENT_SERVICE_URL=http://payment-service:3010
+      - INVENTORY_SERVICE_URL=http://inventory-service:3011
       - OTEL_SERVICE_NAME=shop-api
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://grafana-lgtm:4317
       - DATABASE_URL=postgres://demo:demo123@postgres:5432/orders
@@ -81,6 +83,10 @@ services:
       postgres:
         condition: service_healthy
       keycloak:
+        condition: service_healthy
+      payment-service:
+        condition: service_healthy
+      inventory-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/api/products', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"]
@@ -133,6 +139,66 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3009/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - demo
+
+  payment-service:
+    build:
+      context: ./services/payment
+      dockerfile: Dockerfile
+    container_name: payment-service
+    ports:
+      - "3010:3010"
+    environment:
+      - NODE_ENV=production
+      - PORT=3010
+      - OTEL_SERVICE_NAME=payment-service
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://grafana-lgtm:4317
+      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_REALM=techstore
+    command: ["node", "--require", "./instrumentation.js", "server.js"]
+    restart: unless-stopped
+    depends_on:
+      grafana-lgtm:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3010/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - demo
+
+  inventory-service:
+    build:
+      context: ./services/inventory
+      dockerfile: Dockerfile
+    container_name: inventory-service
+    ports:
+      - "3011:3011"
+    environment:
+      - NODE_ENV=production
+      - PORT=3011
+      - OTEL_SERVICE_NAME=inventory-service
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://grafana-lgtm:4317
+      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_REALM=techstore
+    command: ["node", "--require", "./instrumentation.js", "server.js"]
+    restart: unless-stopped
+    depends_on:
+      grafana-lgtm:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3011/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"]
       interval: 30s
       timeout: 3s
       retries: 3
