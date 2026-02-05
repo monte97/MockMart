@@ -131,6 +131,25 @@
       "attributes": {
         "canCheckout": ["false"]
       }
+    },
+    {
+      "username": "luigi",
+      "email": "luigi.verdi@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Luigi",
+      "lastName": "Verdi",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "luigi123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["user"],
+      "attributes": {
+        "canCheckout": ["true"]
+      }
     }
   ],
   "clientScopes": [
