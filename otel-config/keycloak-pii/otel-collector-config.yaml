@@ -1,0 +1,207 @@
+# OpenTelemetry Collector - PII Filtering Config (SAFE)
+#
+# Defense in depth: Il Collector come gatekeeper centrale
+# per filtrare PII da tutti i servizi, specialmente third-party
+# su cui abbiamo controllo limitato (es. Keycloak)
+#
+# Processor order (best practice):
+# 1. memory_limiter - protezione OOM
+# 2. filter - drop early (riduce carico)
+# 3. attributes/* - PII filtering
+# 4. transform - OTTL transformations
+# 5. batch - sempre ultimo
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+        cors:
+          allowed_origins:
+            - http://*
+            - https://*
+
+processors:
+  # =============================================
+  # 1. MEMORY PROTECTION (sempre primo)
+  # =============================================
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+
+  # =============================================
+  # 2. FILTER - Drop early per ridurre carico
+  # =============================================
+  filter/drop-health:
+    error_mode: ignore
+    traces:
+      span:
+        - 'attributes["http.target"] != nil and IsMatch(attributes["http.target"], ".*/(health|ready|live|metrics).*")'
+        - 'attributes["http.url"] != nil and IsMatch(attributes["http.url"], ".*/(health|ready|live|metrics).*")'
+
+  # =============================================
+  # 3. DELETE - Rimuovi attributi sensibili interi
+  # =============================================
+  attributes/delete-pii:
+    actions:
+      # Request/response bodies - possono contenere password
+      - key: http.request.body
+        action: delete
+      - key: http.response.body
+        action: delete
+
+      # Headers con token di autenticazione
+      - key: http.request.header.authorization
+        action: delete
+      - key: http.request.header.cookie
+        action: delete
+      - key: http.response.header.set-cookie
+        action: delete
+
+      # Token e secrets
+      - key: auth.token
+        action: delete
+      - key: keycloak.access_token
+        action: delete
+      - key: keycloak.refresh_token
+        action: delete
+
+  # =============================================
+  # 4. REDACT - URL con parametri sensibili
+  # =============================================
+  # Nota: eliminiamo URL che contengono parametri sensibili
+  # perche' il pattern replacement e' complesso da fare in modo sicuro
+  attributes/redact-urls:
+    actions:
+      - key: http.url
+        action: delete
+        pattern: '.*(username|email|password|token|code|client_secret|grant_type=password).*'
+      - key: http.target
+        action: delete
+        pattern: '.*(username|email|password|token|code|client_secret|grant_type=password).*'
+      - key: url.full
+        action: delete
+        pattern: '.*(username|email|password|token|code|client_secret|grant_type=password).*'
+      - key: url.query
+        action: delete
+        pattern: '.*(username|email|password|token|code|client_secret).*'
+
+  # =============================================
+  # 5. HASH - User identifiers per correlazione
+  # =============================================
+  # Nota: hashing mantiene la possibilita' di correlare
+  # trace per utente senza esporre l'identita'
+  # CAVEAT: non e' anonimizzazione completa se input space e' limitato
+  attributes/hash-users:
+    actions:
+      - key: enduser.id
+        action: hash
+      - key: enduser.username
+        action: hash
+      - key: user.id
+        action: hash
+      - key: user.email
+        action: hash
+      - key: session.id
+        action: hash
+
+  # =============================================
+  # 6. SANITIZE - Database queries
+  # =============================================
+  # Elimina query che contengono valori PII
+  attributes/sanitize-db:
+    actions:
+      - key: db.statement
+        action: delete
+        pattern: ".*(email|username|password|user_id)\\s*=\\s*'[^']*'.*"
+      - key: db.statement
+        action: delete
+        pattern: ".*VALUES\\s*\\([^)]*@[^)]*\\).*"
+
+  # =============================================
+  # 7. TRANSFORM LOGS - OTTL per log PII
+  # =============================================
+  transform/logs-pii:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          # Rimuovi campi sensibili dal body dei log JSON
+          - delete_key(attributes, "email")
+          - delete_key(attributes, "userEmail")
+          - delete_key(attributes, "user_email")
+          - delete_key(attributes, "password")
+          - delete_key(attributes, "token")
+          - delete_key(attributes, "accessToken")
+          - delete_key(attributes, "refreshToken")
+
+  # =============================================
+  # 8. BATCH (sempre ultimo)
+  # =============================================
+  batch:
+    timeout: 10s
+    send_batch_size: 1024
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+exporters:
+  # Traces -> Tempo
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+
+  # Metrics -> Prometheus
+  prometheusremotewrite:
+    endpoint: http://prometheus:9090/api/v1/write
+    tls:
+      insecure: true
+
+  # Logs -> Loki
+  loki:
+    endpoint: http://loki:3100/loki/api/v1/push
+
+  # Debug (opzionale - disabilitato in prod)
+  debug:
+    verbosity: basic
+
+service:
+  extensions: [health_check]
+
+  telemetry:
+    metrics:
+      level: detailed
+      address: 0.0.0.0:8888
+
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [
+        memory_limiter,
+        filter/drop-health,
+        attributes/delete-pii,
+        attributes/redact-urls,
+        attributes/hash-users,
+        attributes/sanitize-db,
+        batch
+      ]
+      exporters: [otlp/tempo]
+
+    logs:
+      receivers: [otlp]
+      processors: [
+        memory_limiter,
+        transform/logs-pii,
+        batch
+      ]
+      exporters: [loki]
+
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [prometheusremotewrite]

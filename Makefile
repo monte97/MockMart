@@ -1,5 +1,5 @@
 .PHONY: help up down restart logs logs-api logs-notification logs-payment logs-inventory logs-grafana logs-keycloak health \
-        scenario-1 scenario-2 scenario-3 traffic grafana shop keycloak clean status init-keycloak \
+        scenario-1 scenario-2 scenario-3 scenario-4 scenario-5 traffic grafana shop keycloak clean status init-keycloak \
         start-payment stop-payment restart-payment rebuild-payment \
         start-inventory stop-inventory restart-inventory rebuild-inventory \
         start-ui stop-ui restart-ui rebuild-ui logs-ui \
@@ -12,7 +12,9 @@
         start-keycloak-postgres stop-keycloak-postgres restart-keycloak-postgres \
         up-otel-keycloak down-otel-keycloak \
         up-data-management down-data-management clean-data-management check-sampling \
-        health-data-management logs-collector logs-tempo logs-prometheus
+        health-data-management logs-collector logs-tempo logs-prometheus \
+        up-keycloak-pii up-keycloak-pii-unsafe down-keycloak-pii clean-keycloak-pii \
+        health-keycloak-pii switch-pii-safe switch-pii-unsafe logs-collector-pii
 
 # Default target
 help:
@@ -34,6 +36,14 @@ help:
 	@echo "  make check-sampling        - Check tail sampling metrics"
 	@echo "  make logs-collector        - Follow OTel Collector logs"
 	@echo ""
+	@echo "🔒 Keycloak PII Filtering Stack (Scenario 5):"
+	@echo "  make up-keycloak-pii       - Start with PII filtering (safe)"
+	@echo "  make up-keycloak-pii-unsafe - Start WITHOUT filtering (shows problem)"
+	@echo "  make down-keycloak-pii     - Stop stack"
+	@echo "  make scenario-5            - Run PII filtering demo"
+	@echo "  make switch-pii-safe       - Hot-switch to safe config"
+	@echo "  make switch-pii-unsafe     - Hot-switch to unsafe config"
+	@echo ""
 	@echo "📋 Logs:"
 	@echo "  make logs            - Follow all logs"
 	@echo "  make logs-api        - Follow shop-api logs"
@@ -45,6 +55,8 @@ help:
 	@echo "  make scenario-1      - Run Silent Failure scenario"
 	@echo "  make scenario-2      - Run Latency Spike scenario"
 	@echo "  make scenario-3      - Run Fan-out Debug scenario (complex)"
+	@echo "  make scenario-4      - Run Data Management demo (requires up-data-management)"
+	@echo "  make scenario-5      - Run PII Filtering demo (requires up-keycloak-pii-unsafe)"
 	@echo "  make traffic         - Generate baseline traffic (50 requests)"
 	@echo ""
 	@echo "🔧 Single Service Management:"
@@ -145,6 +157,11 @@ scenario-2:
 scenario-3:
 	@echo "🎬 Running Scenario 3: Fan-out Debug (Complex)..."
 	@bash ./scripts/scenario-3-fanout-debug.sh
+
+scenario-4:
+	@echo "🎬 Running Scenario 4: Data Management Demo..."
+	@echo "   (Requires: make up-data-management)"
+	@bash ./scripts/scenario-4-data-management.sh
 
 traffic:
 	@echo "🚦 Generating baseline traffic..."
@@ -473,3 +490,101 @@ logs-tempo:
 
 logs-prometheus:
 	docker compose -f docker-compose.data-management.yml logs -f prometheus
+
+# ============================================
+# KEYCLOAK PII FILTERING STACK (Scenario 5)
+# ============================================
+# Stack per dimostrare PII filtering con OTel Collector:
+# - Keycloak con tracing nativo
+# - OTel Collector con config switchabile (safe/unsafe)
+# - Stack completo: Tempo, Loki, Prometheus, Grafana
+
+up-keycloak-pii:
+	@echo "🔒 Starting Keycloak PII Filtering stack (SAFE config)..."
+	@echo ""
+	@echo "📦 Features:"
+	@echo "   - Keycloak with native OpenTelemetry tracing"
+	@echo "   - OTel Collector with PII filtering enabled"
+	@echo "   - 6 filtering layers: DELETE, REDACT, HASH, SANITIZE, TRUNCATE, FILTER"
+	@echo ""
+	OTEL_CONFIG=otel-collector-config.yaml docker compose -f docker-compose.keycloak-pii.yml up -d
+	@echo ""
+	@echo "⏳ Waiting for services to be healthy..."
+	@sleep 20
+	@make health-keycloak-pii
+	@echo ""
+	@echo "✅ Stack ready with PII filtering enabled!"
+	@echo ""
+	@echo "📍 Access points:"
+	@echo "   - Shop UI:       http://localhost:3000"
+	@echo "   - Grafana:       http://localhost:3005"
+	@echo "   - Keycloak:      http://localhost:8080 (admin/admin)"
+	@echo ""
+	@echo "🧪 Run scenario: make scenario-5"
+
+up-keycloak-pii-unsafe:
+	@echo "⚠️  Starting Keycloak PII Filtering stack (UNSAFE config)..."
+	@echo ""
+	@echo "🚨 WARNING: PII filtering is DISABLED!"
+	@echo "   This config is for demonstrating the problem."
+	@echo "   DO NOT use in production!"
+	@echo ""
+	OTEL_CONFIG=otel-collector-unsafe.yaml docker compose -f docker-compose.keycloak-pii.yml up -d
+	@echo ""
+	@echo "⏳ Waiting for services to be healthy..."
+	@sleep 20
+	@make health-keycloak-pii
+	@echo ""
+	@echo "⚠️  Stack ready WITHOUT PII filtering!"
+	@echo ""
+	@echo "📍 Access points:"
+	@echo "   - Shop UI:       http://localhost:3000"
+	@echo "   - Grafana:       http://localhost:3005"
+	@echo "   - Keycloak:      http://localhost:8080 (admin/admin)"
+	@echo ""
+	@echo "🧪 Run scenario: make scenario-5"
+
+down-keycloak-pii:
+	@echo "🛑 Stopping Keycloak PII Filtering stack..."
+	docker compose -f docker-compose.keycloak-pii.yml down
+
+clean-keycloak-pii:
+	@echo "🧹 Cleaning Keycloak PII Filtering stack (includes volumes)..."
+	docker compose -f docker-compose.keycloak-pii.yml down -v
+	@echo "✅ Clean complete"
+
+health-keycloak-pii:
+	@echo "🏥 Health Status (Keycloak PII Filtering Stack):"
+	@echo -n "  OTel Collector:       "
+	@curl -sf http://localhost:13133/ready > /dev/null 2>&1 && echo "✅ Healthy" || echo "❌ Unhealthy"
+	@echo -n "  Tempo:                "
+	@curl -sf http://localhost:3200/ready > /dev/null 2>&1 && echo "✅ Healthy" || echo "❌ Unhealthy"
+	@echo -n "  Prometheus:           "
+	@curl -sf http://localhost:9090/-/healthy > /dev/null 2>&1 && echo "✅ Healthy" || echo "❌ Unhealthy"
+	@echo -n "  Loki:                 "
+	@curl -sf http://localhost:3100/ready > /dev/null 2>&1 && echo "✅ Healthy" || echo "❌ Unhealthy"
+	@echo -n "  Grafana:              "
+	@curl -sf http://localhost:3005/api/health > /dev/null 2>&1 && echo "✅ Healthy" || echo "❌ Unhealthy"
+	@echo -n "  Keycloak:             "
+	@curl -sf http://localhost:8080/health/ready > /dev/null 2>&1 && echo "✅ Healthy" || echo "❌ Unhealthy"
+	@echo -n "  Shop API:             "
+	@curl -s http://localhost:3001/api/products > /dev/null 2>&1 && echo "✅ Healthy" || echo "❌ Unhealthy"
+
+scenario-5:
+	@echo "🎬 Running Scenario 5: PII Filtering..."
+	@bash ./scripts/scenario-5-pii-filtering.sh
+
+switch-pii-safe:
+	@echo "🔄 Switching to SAFE config (PII filtering enabled)..."
+	OTEL_CONFIG=otel-collector-config.yaml docker compose -f docker-compose.keycloak-pii.yml up -d otel-collector
+	@sleep 5
+	@echo "✅ Collector restarted with PII filtering"
+
+switch-pii-unsafe:
+	@echo "⚠️  Switching to UNSAFE config (PII filtering disabled)..."
+	OTEL_CONFIG=otel-collector-unsafe.yaml docker compose -f docker-compose.keycloak-pii.yml up -d otel-collector
+	@sleep 5
+	@echo "⚠️  Collector restarted WITHOUT PII filtering"
+
+logs-collector-pii:
+	docker compose -f docker-compose.keycloak-pii.yml logs -f otel-collector

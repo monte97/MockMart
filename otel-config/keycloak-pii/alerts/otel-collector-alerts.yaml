@@ -1,0 +1,95 @@
+# Alert Rules - OTel Collector Health
+# Monitora che il sistema di observability funzioni correttamente
+
+groups:
+  - name: otel-collector-health
+    rules:
+      # Alert 1: Backpressure - Collector queue si sta riempiendo
+      - alert: OtelCollectorBackpressure
+        expr: otelcol_exporter_queue_size > 5000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Collector queue backing up"
+          description: "Queue size {{ $value }}, potrebbe perdere span"
+
+      # Alert 2: Export failures - Collector non riesce a inviare dati
+      - alert: OtelCollectorExportFailures
+        expr: rate(otelcol_exporter_send_failed_spans_total[5m]) > 100
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Collector failing to export spans"
+          description: "Perdendo {{ $value }} span/sec - verificare connettività a Tempo"
+
+      # Alert 3: Drop rate anomalo (dovrebbe essere ~90% con sampling 10%)
+      - alert: OtelSamplingRateTooLow
+        expr: |
+          (
+            rate(otelcol_processor_dropped_spans_total{processor="tail_sampling"}[5m]) /
+            rate(otelcol_receiver_accepted_spans_total[5m])
+          ) < 0.5
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "Drop rate troppo basso"
+          description: "Atteso ~90%, visto {{ $value | humanizePercentage }} - verificare config tail sampling"
+
+      # Alert 4: Drop rate troppo alto (potrebbe indicare problemi)
+      - alert: OtelSamplingRateTooHigh
+        expr: |
+          (
+            rate(otelcol_processor_dropped_spans_total{processor="tail_sampling"}[5m]) /
+            rate(otelcol_receiver_accepted_spans_total[5m])
+          ) > 0.99
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Drop rate troppo alto"
+          description: "Dropping {{ $value | humanizePercentage }} - potrebbe perdere dati importanti"
+
+      # Alert 5: Collector down
+      - alert: OtelCollectorDown
+        expr: up{job="otel-collector"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "OTel Collector non raggiungibile"
+          description: "Collector down - nessuna telemetria raccolta"
+
+      # Alert 6: Memory usage alto
+      - alert: OtelCollectorHighMemory
+        expr: otelcol_process_memory_rss > 500000000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Collector memory usage alto"
+          description: "Using {{ $value | humanize1024 }}B - considerare scaling"
+
+  - name: tempo-health
+    rules:
+      # Alert: Tempo ingestion failures
+      - alert: TempoIngestionFailures
+        expr: rate(tempo_distributor_ingester_append_failures_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Tempo ingestion failures"
+          description: "Errori nell'ingestione trace in Tempo"
+
+      # Alert: Tempo compactor behind
+      - alert: TempoCompactorBehind
+        expr: tempo_compactor_outstanding_blocks > 100
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Tempo compactor behind"
+          description: "{{ $value }} blocchi in attesa di compaction"

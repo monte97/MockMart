@@ -121,8 +121,11 @@ make traffic      # 50 baseline requests
 make scenario-1   # Silent failure: notification error
 make scenario-2   # Latency spike: slow template
 make scenario-3   # Fan-out debug: parallel service delays
+make scenario-4   # Data management: tail sampling + retention (requires up-data-management)
 ```
 
 Scenario 3 tests Payment/Inventory delays with configurable latency. Script outputs direct Grafana trace links for comparison.
+
+Scenario 4 demonstrates tail sampling (90% drop rate) and retention (5 min in demo). Requires `make up-data-management` stack.
 
 View traces in Grafana: `http://localhost/grafana` → Explore → Tempo

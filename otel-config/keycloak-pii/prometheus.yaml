@@ -1,0 +1,58 @@
+# Prometheus Configuration - Data Management
+# Include scrape configs e alert rules per monitoring del collector
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# Alert rules
+rule_files:
+  - /etc/prometheus/alerts/*.yaml
+
+# Alertmanager (opzionale)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ['alertmanager:9093']
+
+# Remote write receiver (per ricevere metriche da OTel Collector)
+# Nota: richiede --enable-feature=remote-write-receiver
+# Le metriche arrivano via OTLP -> prometheusremotewrite exporter
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # OTel Collector metrics (meta-observability)
+  - job_name: 'otel-collector'
+    static_configs:
+      - targets: ['otel-collector:8888']
+    metric_relabel_configs:
+      # Mantieni solo metriche utili per monitoring
+      - source_labels: [__name__]
+        regex: 'otelcol_(receiver|processor|exporter)_.*'
+        action: keep
+
+  # Tempo metrics
+  - job_name: 'tempo'
+    static_configs:
+      - targets: ['tempo:3200']
+
+  # Loki metrics
+  - job_name: 'loki'
+    static_configs:
+      - targets: ['loki:3100']
+
+  # Application services (se espongono metriche Prometheus)
+  - job_name: 'mockmart-services'
+    static_configs:
+      - targets:
+          - 'shop-api:3001'
+          - 'notification-service:3009'
+          - 'payment-service:3010'
+          - 'inventory-service:3011'
+    metrics_path: /metrics
+    # Ignora errori se il servizio non espone metriche
+    scrape_timeout: 5s
