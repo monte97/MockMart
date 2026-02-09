@@ -1,6 +1,8 @@
 const { NodeSDK } = require('@opentelemetry/sdk-node');
 const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumentations-node');
 const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-grpc');
+const { OTLPLogExporter } = require('@opentelemetry/exporter-logs-otlp-grpc');
+const { BatchLogRecordProcessor } = require('@opentelemetry/sdk-logs');
 const { resourceFromAttributes } = require('@opentelemetry/resources');
 
 const serviceName = process.env.OTEL_SERVICE_NAME || 'payment-service';
@@ -15,6 +17,9 @@ const sdk = new NodeSDK({
   traceExporter: new OTLPTraceExporter({
     url: otlpEndpoint,
   }),
+  logRecordProcessors: [
+    new BatchLogRecordProcessor(new OTLPLogExporter({ url: otlpEndpoint })),
+  ],
   instrumentations: [
     getNodeAutoInstrumentations({
       '@opentelemetry/instrumentation-fs': { enabled: false },
