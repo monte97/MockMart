@@ -30,7 +30,7 @@ services:
       # =============================================
       # OpenTelemetry - Global Settings
       # =============================================
-      KC_TELEMETRY_ENDPOINT: http://grafana-lgtm:4317
+      KC_TELEMETRY_ENDPOINT: http://grafana:4317
       KC_TELEMETRY_PROTOCOL: grpc
       KC_TELEMETRY_SERVICE_NAME: keycloak
       KC_TELEMETRY_RESOURCE_ATTRIBUTES: service.namespace=mockmart,deployment.environment=demo
@@ -62,5 +62,5 @@ services:
     depends_on:
       keycloak-postgres:
         condition: service_healthy
-      grafana-lgtm:
+      grafana:
         condition: service_healthy

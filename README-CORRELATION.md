@@ -34,7 +34,7 @@ docker compose up -d
 docker compose ps
 # All services should show "healthy"
 
-docker compose logs grafana-lgtm | grep "HTTP Server Listen"
+docker compose logs grafana | grep "HTTP Server Listen"
 # Should show Grafana is ready
 ```
 
@@ -124,7 +124,7 @@ sdk.start();
 
 ```yaml
 OTEL_SERVICE_NAME: shop-api
-OTEL_EXPORTER_OTLP_ENDPOINT: http://grafana-lgtm:4317
+OTEL_EXPORTER_OTLP_ENDPOINT: http://grafana:4317
 ```
 
 ## Database Schema
@@ -172,9 +172,9 @@ curl -X POST http://localhost:3009/config/reset
 
 ### No traces in Grafana
 
-1. Check LGTM is running: `docker compose logs grafana-lgtm`
+1. Check LGTM is running: `docker compose logs grafana`
 2. Check services can reach LGTM: `docker compose logs shop-api | grep "OpenTelemetry"`
-3. Verify network: `docker compose exec shop-api ping grafana-lgtm`
+3. Verify network: `docker compose exec shop-api ping grafana`
 
 ### Database connection errors
 

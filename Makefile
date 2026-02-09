@@ -21,7 +21,7 @@ help:
 	@echo "📚 OpenTelemetry Correlation Demo - Available Commands"
 	@echo ""
 	@echo "🚀 Stack Management:"
-	@echo "  make up                    - Start all services (grafana-lgtm)"
+	@echo "  make up                    - Start all services (grafana)"
 	@echo "  make up-otel-keycloak      - Start with Keycloak OTEL instrumentation"
 	@echo "  make up-data-management    - Start with data management stack"
 	@echo "  make down                  - Stop all services"
@@ -48,7 +48,7 @@ help:
 	@echo "  make logs            - Follow all logs"
 	@echo "  make logs-api        - Follow shop-api logs"
 	@echo "  make logs-notification - Follow notification-service logs"
-	@echo "  make logs-grafana    - Follow grafana-lgtm logs"
+	@echo "  make logs-grafana    - Follow grafana logs"
 	@echo "  make logs-keycloak   - Follow keycloak logs"
 	@echo ""
 	@echo "🧪 Scenarios:"
@@ -135,7 +135,7 @@ logs-notification:
 	docker compose logs -f notification-service
 
 logs-grafana:
-	docker compose logs -f grafana-lgtm
+	docker compose logs -f grafana
 
 logs-keycloak:
 	docker compose logs -f keycloak
@@ -283,16 +283,16 @@ rebuild-keycloak:
 
 # Grafana LGTM
 start-grafana:
-	@echo "🚀 Starting grafana-lgtm..."
-	docker compose up -d grafana-lgtm
+	@echo "🚀 Starting grafana..."
+	docker compose up -d grafana
 
 stop-grafana:
-	@echo "🛑 Stopping grafana-lgtm..."
-	docker compose stop grafana-lgtm
+	@echo "🛑 Stopping grafana..."
+	docker compose stop grafana
 
 restart-grafana:
-	@echo "🔄 Restarting grafana-lgtm..."
-	docker compose restart grafana-lgtm
+	@echo "🔄 Restarting grafana..."
+	docker compose restart grafana
 
 # Gateway
 start-gateway:

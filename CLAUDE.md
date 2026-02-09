@@ -33,7 +33,7 @@ Gateway (nginx:80)
 ├── /        → shop-ui (React SPA, :3000)
 ├── /api/    → shop-api (Node.js/Express, :3001)
 ├── /auth/   → keycloak (:8080)
-└── /grafana/→ grafana-lgtm (:3005)
+└── /grafana/→ grafana (:3005)
 
 shop-api → postgres (orders DB)
 shop-api → payment-service (:3010)      # Fan-out
@@ -62,7 +62,7 @@ shop-api → notification-service (:3009) # M2M via Client Credentials
 
 | Command | Description | Use Case |
 |---------|-------------|----------|
-| `make up` | Base with grafana-lgtm | Workshop, demos |
+| `make up` | Base with grafana | Workshop, demos |
 | `make up-data-management` | Separated OTEL stack | Tail sampling, production-like |
 | `make up-otel-keycloak` | Keycloak native tracing | Auth debugging |
 

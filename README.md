@@ -80,7 +80,7 @@ Standard configuration with Grafana LGTM (all-in-one observability).
 | payment | 3010 | Payment processing |
 | inventory | 3011 | Stock management |
 | keycloak | 8080 | Identity provider |
-| grafana-lgtm | 3005 | Traces, Logs, Metrics |
+| grafana | 3005 | Traces, Logs, Metrics |
 | postgres | 5432 | Orders database |
 
 ### Make Commands
@@ -161,7 +161,7 @@ Production-like observability with separated components and **tail sampling** (9
 
 ### Overview
 
-Replaces `grafana-lgtm` with individual components:
+Replaces `grafana` with individual components:
 - **OTel Collector**: Tail sampling processor
 - **Tempo**: Distributed tracing (7-day retention)
 - **Prometheus**: Metrics + alerting (7-day retention)
@@ -222,7 +222,7 @@ Enables **native OpenTelemetry instrumentation** in Keycloak for debugging authe
 - Distributed tracing of login/token flows
 - Trace IDs in Keycloak console logs
 - 100% sampling (`always_on`)
-- Exports to `grafana-lgtm:4317`
+- Exports to `grafana:4317`
 
 ### Make Commands
 
@@ -237,7 +237,7 @@ Overlay file: `docker-compose.otel-keycloak.yml`
 
 Key environment variables:
 - `KC_TRACING_ENABLED=true`
-- `KC_TRACING_ENDPOINT=http://grafana-lgtm:4317`
+- `KC_TRACING_ENDPOINT=http://grafana:4317`
 - `KC_TRACING_SAMPLER_TYPE=always_on`
 - `KC_LOG_TRACING_INCLUDE_TRACE_ID=true`
 
