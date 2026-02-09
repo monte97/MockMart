@@ -10,12 +10,13 @@ services:
       POSTGRES_USER: keycloak
       POSTGRES_PASSWORD: keycloak
     volumes:
-      - keycloak-postgres-data:/var/lib/postgresql/data
+      - keycloak-postgres-data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
       interval: 10s
       timeout: 3s
-      retries: 3
+      retries: 5
+      start_period: 30s
     networks:
       - demo
 
@@ -91,9 +92,9 @@ services:
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/api/products', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"]
       interval: 30s
-      timeout: 3s
+      timeout: 10s
       retries: 3
-      start_period: 5s
+      start_period: 15s
     networks:
       - demo
 
@@ -140,9 +141,9 @@ services:
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3009/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"]
       interval: 30s
-      timeout: 3s
+      timeout: 10s
       retries: 3
-      start_period: 5s
+      start_period: 15s
     networks:
       - demo
 
@@ -170,9 +171,9 @@ services:
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3010/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"]
       interval: 30s
-      timeout: 3s
+      timeout: 10s
       retries: 3
-      start_period: 5s
+      start_period: 15s
     networks:
       - demo
 
@@ -200,14 +201,14 @@ services:
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3011/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"]
       interval: 30s
-      timeout: 3s
+      timeout: 10s
       retries: 3
-      start_period: 5s
+      start_period: 15s
     networks:
       - demo
 
   grafana-lgtm:
-    image: grafana/otel-lgtm:latest
+    image: grafana/otel-lgtm:0.17.1
     container_name: grafana-lgtm
     ports:
       - "3005:3000"   # Grafana UI (mapped to 3005 to avoid conflict with shop-ui)
@@ -240,12 +241,13 @@ services:
       POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
-      - postgres-data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U demo -d orders"]
       interval: 10s
       timeout: 3s
-      retries: 3
+      retries: 5
+      start_period: 30s
     networks:
       - demo
 

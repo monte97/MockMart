@@ -608,6 +608,9 @@ app.post('/api/checkout', requireAuth, async (req, res) => {
   // Get the current span for adding attributes
   const currentSpan = trace.getActiveSpan();
 
+  // Mark as audit event - tail sampling will ALWAYS keep this trace
+  currentSpan?.setAttribute('audit.event', 'true');
+
   // Prepare items for inventory and payment services
   const items = cart.map(item => ({
     productId: item.productId,
