@@ -28,8 +28,7 @@ CREATE INDEX idx_order_items_order_id ON order_items(order_id);
 
 -- Insert test data (optional, for demo)
 INSERT INTO orders (user_id, user_email, user_name, total, shipping_address, payment_method, status)
-VALUES
-  ('test-user-1', 'test@example.com', 'Test User', 99.99,
-   '{"firstName":"Test","lastName":"User","address":"123 Main St","city":"Rome","zipCode":"00100","phone":"555-1234"}',
-   'credit-card', 'completed')
-ON CONFLICT DO NOTHING;
+SELECT 'test-user-1', 'test@example.com', 'Test User', 99.99,
+   '{"firstName":"Test","lastName":"User","address":"123 Main St","city":"Rome","zipCode":"00100","phone":"555-1234"}'::jsonb,
+   'credit-card', 'completed'
+WHERE NOT EXISTS (SELECT 1 FROM orders WHERE user_id = 'test-user-1');

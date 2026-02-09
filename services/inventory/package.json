@@ -19,11 +19,11 @@
     "cors": "^2.8.5",
     "jose": "^5.2.0",
     "pino": "^8.17.2",
-    "@opentelemetry/sdk-node": "^0.45.1",
-    "@opentelemetry/auto-instrumentations-node": "^0.39.4",
-    "@opentelemetry/exporter-trace-otlp-grpc": "^0.45.1",
-    "@opentelemetry/instrumentation-pino": "^0.34.1",
-    "@opentelemetry/api": "^1.7.0"
+    "@opentelemetry/sdk-node": "^0.211.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.69.0",
+    "@opentelemetry/exporter-trace-otlp-grpc": "^0.211.0",
+    "@opentelemetry/resources": "^2.5.0",
+    "@opentelemetry/api": "^1.9.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1",
