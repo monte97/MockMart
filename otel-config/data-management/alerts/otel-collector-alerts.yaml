@@ -28,8 +28,11 @@ groups:
       - alert: OtelSamplingRateTooLow
         expr: |
           (
-            rate(otelcol_processor_dropped_spans_total{processor="tail_sampling"}[5m]) /
-            rate(otelcol_receiver_accepted_spans_total[5m])
+            rate(otelcol_processor_tail_sampling_global_count_traces_sampled_total{sampled="false"}[5m]) /
+            (
+              rate(otelcol_processor_tail_sampling_global_count_traces_sampled_total{sampled="true"}[5m]) +
+              rate(otelcol_processor_tail_sampling_global_count_traces_sampled_total{sampled="false"}[5m])
+            )
           ) < 0.5
         for: 10m
         labels:
@@ -42,8 +45,11 @@ groups:
       - alert: OtelSamplingRateTooHigh
         expr: |
           (
-            rate(otelcol_processor_dropped_spans_total{processor="tail_sampling"}[5m]) /
-            rate(otelcol_receiver_accepted_spans_total[5m])
+            rate(otelcol_processor_tail_sampling_global_count_traces_sampled_total{sampled="false"}[5m]) /
+            (
+              rate(otelcol_processor_tail_sampling_global_count_traces_sampled_total{sampled="true"}[5m]) +
+              rate(otelcol_processor_tail_sampling_global_count_traces_sampled_total{sampled="false"}[5m])
+            )
           ) > 0.99
         for: 10m
         labels:

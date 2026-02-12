@@ -83,7 +83,7 @@
       },
       "targets": [
         {
-          "expr": "rate(otelcol_processor_dropped_spans_total{processor=\"tail_sampling\"}[5m]) / rate(otelcol_receiver_accepted_spans_total[5m])",
+          "expr": "rate(otelcol_processor_tail_sampling_global_count_traces_sampled_total{sampled=\"false\"}[5m]) / (rate(otelcol_processor_tail_sampling_global_count_traces_sampled_total{sampled=\"true\"}[5m]) + rate(otelcol_processor_tail_sampling_global_count_traces_sampled_total{sampled=\"false\"}[5m]))",
           "legendFormat": "Drop Rate",
           "refId": "A"
         }
@@ -214,7 +214,7 @@
           "refId": "B"
         },
         {
-          "expr": "rate(otelcol_processor_dropped_spans_total{processor=\"tail_sampling\"}[5m])",
+          "expr": "rate(otelcol_processor_tail_sampling_global_count_traces_sampled_total{sampled=\"false\"}[5m])",
           "legendFormat": "Droppati (sampling)",
           "refId": "C"
         }
@@ -261,7 +261,7 @@
       },
       "targets": [
         {
-          "expr": "rate(otelcol_processor_dropped_spans_total{processor=\"tail_sampling\"}[5m]) / rate(otelcol_receiver_accepted_spans_total[5m])",
+          "expr": "rate(otelcol_processor_tail_sampling_global_count_traces_sampled_total{sampled=\"false\"}[5m]) / (rate(otelcol_processor_tail_sampling_global_count_traces_sampled_total{sampled=\"true\"}[5m]) + rate(otelcol_processor_tail_sampling_global_count_traces_sampled_total{sampled=\"false\"}[5m]))",
           "legendFormat": "Drop Rate",
           "refId": "A"
         }

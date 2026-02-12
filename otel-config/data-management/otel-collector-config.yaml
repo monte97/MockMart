@@ -75,9 +75,11 @@ exporters:
     tls:
       insecure: true
 
-  # Logs -> Loki
-  loki:
-    endpoint: http://loki:3100/loki/api/v1/push
+  # Logs -> Loki (OTLP nativo, Loki 3.x+)
+  otlphttp/loki:
+    endpoint: http://loki:3100/otlp
+    tls:
+      insecure: true
 
   # Debug (opzionale)
   debug:
@@ -89,7 +91,12 @@ service:
   telemetry:
     metrics:
       level: detailed
-      address: 0.0.0.0:8888
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: '0.0.0.0'
+                port: 8888
 
   pipelines:
     traces:
@@ -105,4 +112,4 @@ service:
     logs:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [loki]
+      exporters: [otlphttp/loki]

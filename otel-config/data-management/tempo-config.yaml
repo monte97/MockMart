@@ -51,7 +51,7 @@ storage:
     local:
       path: /var/tempo/blocks
     block:
-      version: vParquet3
+      version: vParquet4
 
 # Metrics generator (opzionale, per span metrics)
 metrics_generator:

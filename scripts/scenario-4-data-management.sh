@@ -102,20 +102,26 @@ get_metrics() {
 
   # Parse key metrics
   local accepted=$(echo "$metrics" | grep "otelcol_receiver_accepted_spans_total" | grep "otlp" | awk '{sum+=$2} END {print sum}')
-  local dropped=$(echo "$metrics" | grep "otelcol_processor_dropped_spans_total" | grep "tail_sampling" | awk '{sum+=$2} END {print sum}')
+  local sampled=$(echo "$metrics" | grep 'otelcol_processor_tail_sampling_global_count_traces_sampled_total' | grep 'sampled="true"' | awk '{sum+=$2} END {print sum}')
+  local not_sampled=$(echo "$metrics" | grep 'otelcol_processor_tail_sampling_global_count_traces_sampled_total' | grep 'sampled="false"' | awk '{sum+=$2} END {print sum}')
+  local dropped=${not_sampled:-0}
   local exported=$(echo "$metrics" | grep "otelcol_exporter_sent_spans_total" | grep "otlp/tempo" | awk '{sum+=$2} END {print sum}')
 
   # Handle empty values
   accepted=${accepted:-0}
+  sampled=${sampled:-0}
   dropped=${dropped:-0}
   exported=${exported:-0}
 
+  local total_traces=$(( sampled + dropped ))
+
   echo "  Span ricevuti (accepted):    $accepted"
-  echo "  Span scartati (dropped):     $dropped"
+  echo "  Trace campionate (kept):     $sampled"
+  echo "  Trace scartate (dropped):    $dropped"
   echo "  Span esportati (to Tempo):   $exported"
 
-  if [ "$accepted" -gt 0 ]; then
-    local drop_rate=$(echo "scale=1; $dropped * 100 / $accepted" | bc 2>/dev/null || echo "N/A")
+  if [ "$total_traces" -gt 0 ]; then
+    local drop_rate=$(echo "scale=1; $dropped * 100 / $total_traces" | bc 2>/dev/null || echo "N/A")
     echo ""
     echo "  📉 Drop rate: ${drop_rate}%"
     echo ""
@@ -126,7 +132,7 @@ get_metrics() {
     fi
   else
     echo ""
-    echo "  ⚠️  Nessuno span ricevuto ancora. Genera traffico con: make traffic"
+    echo "  ⚠️  Nessuna trace processata ancora. Genera traffico con: make traffic"
   fi
 }
 
