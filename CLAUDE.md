@@ -28,17 +28,24 @@ make logs-{api,notification,payment,inventory}
 
 ## Architecture
 
+Only port 80 is exposed on the host. All access goes through the nginx gateway.
+
 ```
-Gateway (nginx:80)
-├── /        → shop-ui (React SPA, :3000)
-├── /api/    → shop-api (Node.js/Express, :3001)
-├── /auth/   → keycloak (:8080)
-└── /grafana/→ grafana (:3005)
+Gateway (nginx:80) — single entry point
+├── /            → shop-ui (React SPA)
+├── /api/        → shop-api (Node.js/Express)
+├── /auth/       → keycloak
+├── /grafana/    → grafana
+├── /services/notification/  → notification-service
+├── /services/payment/       → payment-service
+├── /services/inventory/     → inventory-service
+├── /services/collector/metrics → otel-collector (data-management/keycloak-pii only)
+└── /health/{service}        → health endpoints for all services
 
 shop-api → postgres (orders DB)
-shop-api → payment-service (:3010)      # Fan-out
-shop-api → inventory-service (:3011)    # Fan-out
-shop-api → notification-service (:3009) # M2M via Client Credentials
+shop-api → payment-service      # Fan-out
+shop-api → inventory-service    # Fan-out
+shop-api → notification-service # M2M via Client Credentials
 ```
 
 **Authentication Flow:**
@@ -48,15 +55,16 @@ shop-api → notification-service (:3009) # M2M via Client Credentials
 
 ## Key Services
 
-| Service | Port | Stack | Entry Point |
-|---------|------|-------|-------------|
-| shop-ui | 3000 | React 18 + Vite | `src/main.jsx` |
-| shop-api | 3001 | Express + OTEL | `server.js` |
-| notification | 3009 | Express + OTEL | `server.js` |
-| payment | 3010 | Express + OTEL | `server.js` |
-| inventory | 3011 | Express + OTEL | `server.js` |
-| keycloak | 8080 | Keycloak 26.0 | Realm: `techstore` |
-| postgres | 5432 | PostgreSQL 18 | DB: `orders`, User: `demo/demo123` |
+| Service | Internal Port | External Access | Entry Point |
+|---------|---------------|-----------------|-------------|
+| shop-ui | 3000 | `http://localhost` | `src/main.jsx` |
+| shop-api | 3001 | `http://localhost/api/` | `server.js` |
+| notification | 3009 | `http://localhost/services/notification/` | `server.js` |
+| payment | 3010 | `http://localhost/services/payment/` | `server.js` |
+| inventory | 3011 | `http://localhost/services/inventory/` | `server.js` |
+| keycloak | 8080 | `http://localhost/auth/` | Realm: `techstore` |
+| grafana | 3000 | `http://localhost/grafana/` | — |
+| postgres | 5432 | internal only | DB: `orders`, User: `demo/demo123` |
 
 ## Stack Variants
 
@@ -71,6 +79,7 @@ shop-api → notification-service (:3009) # M2M via Client Credentials
 **React Frontend (shop-ui):**
 - State management via React Context (`AuthContext`, `CartContext`)
 - Keycloak integration in `src/contexts/AuthContext.jsx`
+- Keycloak URL derived from `window.location.origin` (works with any hostname/port)
 - API calls through `src/services/api.js`
 - Vite proxy configured for `/api` routes in dev mode
 
@@ -80,12 +89,13 @@ shop-api → notification-service (:3009) # M2M via Client Credentials
 - JWT validation middleware in `middleware/auth.js`
 - Service tokens for M2M in `lib/service-token.js`
 - Config endpoints for scenarios: `/config/simulate-slow`, `/config/reset`
-- Swagger docs at `http://localhost:3001/api-docs`
+- Swagger docs at `http://localhost/api/api-docs`
 
 **Environment Variables (shop-api):**
 - `PAYMENT_SERVICE_URL=http://payment-service:3010`
 - `INVENTORY_SERVICE_URL=http://inventory-service:3011`
 - `NOTIFICATION_SERVICE_URL=http://notification-service:3009`
+- `KEYCLOAK_PUBLIC_URL=http://localhost` (JWT issuer validation via gateway)
 - `KEYCLOAK_AUTH_PATH=/auth`
 
 **Keycloak Configuration:**
@@ -93,6 +103,11 @@ shop-api → notification-service (:3009) # M2M via Client Credentials
 - Auth path: `/auth` (included in issuer URLs)
 - Custom claim: `canCheckout` controls checkout access
 - Roles: `admin`, `user` (mapped to `roles` claim, not `realm_access.roles`)
+
+**Nginx Gateway (`services/gateway/nginx.conf`):**
+- Static upstreams for core services (shop-ui, shop-api, keycloak, grafana, notification, payment, inventory)
+- Docker DNS resolver (`127.0.0.11`) for optional observability services (collector, tempo, prometheus, loki)
+- Health endpoints at `/health/{service}` for all services
 
 ## Test Users
 
@@ -104,7 +119,7 @@ shop-api → notification-service (:3009) # M2M via Client Credentials
 
 ## Common Issues
 
-**401 on API calls:** Check that `KEYCLOAK_AUTH_PATH=/auth` is set. Token issuer must match `http://localhost:8080/auth/realms/techstore`.
+**401 on API calls:** Check that `KEYCLOAK_AUTH_PATH=/auth` is set. Token issuer must match `http://localhost/auth/realms/techstore`.
 
 **Null user_id in orders:** Ensure realm-config.json includes `oidc-sub-mapper` in protocolMappers.
 
@@ -114,6 +129,8 @@ shop-api → notification-service (:3009) # M2M via Client Credentials
 
 **Tail sampling not working:** Only available with `make up-data-management`. Verify with `make check-sampling`.
 
+**Health check shows unhealthy after startup:** Tempo/Loki need ~30s to start. Wait and retry `make health-data-management`.
+
 ## Demo Scenarios
 
 ```bash
@@ -122,6 +139,7 @@ make scenario-1   # Silent failure: notification error
 make scenario-2   # Latency spike: slow template
 make scenario-3   # Fan-out debug: parallel service delays
 make scenario-4   # Data management: tail sampling + retention (requires up-data-management)
+make scenario-5   # PII filtering: Keycloak trace sanitization (requires up-keycloak-pii)
 ```
 
 Scenario 3 tests Payment/Inventory delays with configurable latency. Script outputs direct Grafana trace links for comparison.
