@@ -37,8 +37,6 @@ services:
       KC_HTTP_RELATIVE_PATH: /auth
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
-    ports:
-      - "8080:8080"
     volumes:
       - ./services/keycloak/realm-config.json:/opt/keycloak/data/import/realm-config.json:ro
     depends_on:
@@ -61,8 +59,6 @@ services:
       context: ./services/shop-api
       dockerfile: Dockerfile
     container_name: shop-api
-    ports:
-      - "${SHOP_API_PORT:-3001}:3001"
     environment:
       - NODE_ENV=production
       - PORT=3001
@@ -73,6 +69,7 @@ services:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://grafana:4317
       - DATABASE_URL=postgres://demo:demo123@postgres:5432/orders
       - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_PUBLIC_URL=http://localhost
       - KEYCLOAK_REALM=techstore
       - KEYCLOAK_CLIENT_ID=shop-api
       - KEYCLOAK_CLIENT_SECRET=shop-api-secret
@@ -103,8 +100,6 @@ services:
       context: ./services/shop-ui
       dockerfile: Dockerfile
     container_name: shop-ui
-    ports:
-      - "${SHOP_UI_PORT:-3000}:3000"
     depends_on:
       - shop-api
     restart: unless-stopped
@@ -122,14 +117,13 @@ services:
       context: ./services/notification
       dockerfile: Dockerfile
     container_name: notification-service
-    ports:
-      - "3009:3009"
     environment:
       - NODE_ENV=production
       - PORT=3009
       - OTEL_SERVICE_NAME=notification-service
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://grafana:4317
       - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_PUBLIC_URL=http://localhost
       - KEYCLOAK_REALM=techstore
     command: ["node", "--require", "./instrumentation.js", "server.js"]
     restart: unless-stopped
@@ -152,14 +146,13 @@ services:
       context: ./services/payment
       dockerfile: Dockerfile
     container_name: payment-service
-    ports:
-      - "3010:3010"
     environment:
       - NODE_ENV=production
       - PORT=3010
       - OTEL_SERVICE_NAME=payment-service
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://grafana:4317
       - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_PUBLIC_URL=http://localhost
       - KEYCLOAK_REALM=techstore
     command: ["node", "--require", "./instrumentation.js", "server.js"]
     restart: unless-stopped
@@ -182,14 +175,13 @@ services:
       context: ./services/inventory
       dockerfile: Dockerfile
     container_name: inventory-service
-    ports:
-      - "3011:3011"
     environment:
       - NODE_ENV=production
       - PORT=3011
       - OTEL_SERVICE_NAME=inventory-service
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://grafana:4317
       - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_PUBLIC_URL=http://localhost
       - KEYCLOAK_REALM=techstore
     command: ["node", "--require", "./instrumentation.js", "server.js"]
     restart: unless-stopped
@@ -210,10 +202,6 @@ services:
   grafana:
     image: grafana/otel-lgtm:0.17.1
     container_name: grafana
-    ports:
-      - "3005:3000"   # Grafana UI (mapped to 3005 to avoid conflict with shop-ui)
-      - "4317:4317"   # OTLP gRPC receiver
-      - "4318:4318"   # OTLP HTTP receiver
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
@@ -232,8 +220,6 @@ services:
   postgres:
     image: postgres:18-alpine
     container_name: postgres-orders
-    ports:
-      - "5432:5432"
     environment:
       POSTGRES_DB: orders
       POSTGRES_USER: demo

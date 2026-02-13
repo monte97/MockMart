@@ -25,11 +25,6 @@ services:
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
       - ./otel-config/keycloak-pii/${OTEL_CONFIG:-otel-collector-config.yaml}:/etc/otel-collector-config.yaml:ro
-    ports:
-      - "4317:4317"   # OTLP gRPC
-      - "4318:4318"   # OTLP HTTP
-      - "8888:8888"   # Prometheus metrics (collector self)
-      - "13133:13133" # Health check
     depends_on:
       - tempo
       - loki
@@ -52,9 +47,6 @@ services:
     volumes:
       - ./otel-config/keycloak-pii/tempo-config.yaml:/etc/tempo.yaml:ro
       - tempo-data:/var/tempo
-    ports:
-      - "3200:3200"   # Tempo API
-      - "9095:9095"   # gRPC
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3200/ready"]
       interval: 10s
@@ -73,8 +65,6 @@ services:
     volumes:
       - ./otel-config/keycloak-pii/loki-config.yaml:/etc/loki/local-config.yaml:ro
       - loki-data:/loki
-    ports:
-      - "3100:3100"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3100/ready"]
       interval: 10s
@@ -100,8 +90,6 @@ services:
       - ./otel-config/keycloak-pii/prometheus.yaml:/etc/prometheus/prometheus.yml:ro
       - ./otel-config/keycloak-pii/alerts:/etc/prometheus/alerts:ro
       - prometheus-data:/prometheus
-    ports:
-      - "9090:9090"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
       interval: 10s
@@ -127,8 +115,6 @@ services:
       - ./otel-config/keycloak-pii/grafana-dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml:ro
       - ./otel-config/keycloak-pii/dashboards:/etc/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
-    ports:
-      - "3005:3000"
     depends_on:
       - prometheus
       - tempo
@@ -209,8 +195,6 @@ services:
       KC_TELEMETRY_METRICS_ENABLED: "true"
       KC_TELEMETRY_METRICS_INTERVAL: 30s
 
-    ports:
-      - "8080:8080"
     volumes:
       - ./services/keycloak/realm-config.json:/opt/keycloak/data/import/realm-config.json:ro
     depends_on:
@@ -235,8 +219,6 @@ services:
       context: ./services/shop-api
       dockerfile: Dockerfile
     container_name: shop-api
-    ports:
-      - "${SHOP_API_PORT:-3001}:3001"
     environment:
       - NODE_ENV=production
       - PORT=3001
@@ -247,6 +229,7 @@ services:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
       - DATABASE_URL=postgres://demo:demo123@postgres:5432/orders
       - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_PUBLIC_URL=http://localhost
       - KEYCLOAK_REALM=techstore
       - KEYCLOAK_CLIENT_ID=shop-api
       - KEYCLOAK_CLIENT_SECRET=shop-api-secret
@@ -277,8 +260,6 @@ services:
       context: ./services/shop-ui
       dockerfile: Dockerfile
     container_name: shop-ui
-    ports:
-      - "${SHOP_UI_PORT:-3000}:3000"
     depends_on:
       - shop-api
     restart: unless-stopped
@@ -296,14 +277,13 @@ services:
       context: ./services/notification
       dockerfile: Dockerfile
     container_name: notification-service
-    ports:
-      - "3009:3009"
     environment:
       - NODE_ENV=production
       - PORT=3009
       - OTEL_SERVICE_NAME=notification-service
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
       - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_PUBLIC_URL=http://localhost
       - KEYCLOAK_REALM=techstore
     command: ["node", "--require", "./instrumentation.js", "server.js"]
     restart: unless-stopped
@@ -326,14 +306,13 @@ services:
       context: ./services/payment
       dockerfile: Dockerfile
     container_name: payment-service
-    ports:
-      - "3010:3010"
     environment:
       - NODE_ENV=production
       - PORT=3010
       - OTEL_SERVICE_NAME=payment-service
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
       - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_PUBLIC_URL=http://localhost
       - KEYCLOAK_REALM=techstore
     command: ["node", "--require", "./instrumentation.js", "server.js"]
     restart: unless-stopped
@@ -356,14 +335,13 @@ services:
       context: ./services/inventory
       dockerfile: Dockerfile
     container_name: inventory-service
-    ports:
-      - "3011:3011"
     environment:
       - NODE_ENV=production
       - PORT=3011
       - OTEL_SERVICE_NAME=inventory-service
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
       - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_PUBLIC_URL=http://localhost
       - KEYCLOAK_REALM=techstore
     command: ["node", "--require", "./instrumentation.js", "server.js"]
     restart: unless-stopped
@@ -384,8 +362,6 @@ services:
   postgres:
     image: postgres:18-alpine
     container_name: postgres-orders
-    ports:
-      - "5432:5432"
     environment:
       POSTGRES_DB: orders
       POSTGRES_USER: demo
