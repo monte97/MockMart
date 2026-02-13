@@ -11,9 +11,9 @@
 
 set -e
 
-KEYCLOAK_URL="http://localhost:8080"
-API_URL="http://localhost:3001"
-GRAFANA_URL="http://localhost:3005"
+KEYCLOAK_URL="http://localhost"
+API_URL="http://localhost"
+GRAFANA_URL="http://localhost/grafana"
 REALM="techstore"
 CLIENT_ID="shop-ui"
 COMPOSE_FILE="docker-compose.keycloak-pii.yml"
@@ -38,7 +38,7 @@ echo ""
 
 # Check if stack is running
 check_stack() {
-  if ! curl -s http://localhost:13133/ready > /dev/null 2>&1; then
+  if ! curl -s http://localhost/health/collector > /dev/null 2>&1; then
     echo -e "${YELLOW}⚠️  Stack not running. Please start with: make up-keycloak-pii-unsafe${NC}"
     exit 1
   fi
@@ -190,7 +190,7 @@ echo -e "   ${BLUE}Waiting for collector to be ready...${NC}"
 sleep 5
 
 # Verify collector is healthy
-if curl -s http://localhost:13133/ready > /dev/null 2>&1; then
+if curl -s http://localhost/health/collector > /dev/null 2>&1; then
   echo -e "   ${GREEN}✅ Collector restarted with PII filtering${NC}"
 else
   echo -e "   ${RED}❌ Collector not ready. Check logs with: docker logs otel-collector${NC}"

@@ -2,8 +2,8 @@
 
 # Traffic generator for demo with Keycloak authentication
 COUNT=${1:-50}
-KEYCLOAK_URL="http://localhost:8080"
-API_URL="http://localhost:3001"
+KEYCLOAK_URL="http://localhost"
+API_URL="http://localhost"
 REALM="techstore"
 CLIENT_ID="shop-ui"
 
@@ -78,4 +78,4 @@ done
 wait
 echo ""
 echo "✅ Complete: $COUNT requests sent"
-echo "📊 View traces in Grafana: http://localhost:3005"
+echo "📊 View traces in Grafana: http://localhost/grafana"

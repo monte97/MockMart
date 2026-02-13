@@ -4,9 +4,9 @@ echo "🎬 Scenario 1: Notification Failure Demo"
 echo "========================================="
 echo ""
 
-KEYCLOAK_URL="http://localhost:8080"
-API_URL="http://localhost:3001"
-NOTIFICATION_URL="http://localhost:3009"
+KEYCLOAK_URL="http://localhost"
+API_URL="http://localhost"
+NOTIFICATION_URL="http://localhost/services/notification"
 REALM="techstore"
 CLIENT_ID="shop-ui"
 
@@ -72,7 +72,7 @@ fi
 echo "  - Notification sent: ❌ NO (invalid email error)"
 echo ""
 echo "🔍 Next steps:"
-echo "  1. Open Grafana: http://localhost:3005"
+echo "  1. Open Grafana: http://localhost/grafana"
 echo "  2. Go to Explore → Tempo"
 if [ -n "$ORDER_ID" ]; then
   echo "  3. Query TraceQL: { span.order_id = $ORDER_ID }"
