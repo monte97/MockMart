@@ -92,7 +92,7 @@ groups:
 
       # Alert: Tempo compactor behind
       - alert: TempoCompactorBehind
-        expr: tempo_compactor_outstanding_blocks > 100
+        expr: tempodb_compaction_outstanding_blocks > 100
         for: 15m
         labels:
           severity: warning
