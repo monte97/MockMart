@@ -7,9 +7,11 @@
 # Processor order (best practice):
 # 1. memory_limiter - protezione OOM
 # 2. filter - drop early (riduce carico)
-# 3. attributes/* - PII filtering
-# 4. transform - OTTL transformations
-# 5. batch - sempre ultimo
+# 3. attributes/delete-pii - DELETE attributi sensibili interi
+# 4. transform/redact-urls - REDACT URL con valori PII (OTTL)
+# 5. attributes/hash-users - HASH user identifiers
+# 6. transform/sanitize-db - SANITIZE DB queries con valori PII (OTTL)
+# 7. batch - sempre ultimo
 
 receivers:
   otlp:
@@ -70,24 +72,20 @@ processors:
         action: delete
 
   # =============================================
-  # 4. REDACT - URL con parametri sensibili
+  # 4. REDACT - URL con parametri sensibili (OTTL)
   # =============================================
-  # Nota: eliminiamo URL che contengono parametri sensibili
-  # perche' il pattern replacement e' complesso da fare in modo sicuro
-  attributes/redact-urls:
-    actions:
-      - key: http.url
-        action: delete
-        pattern: '.*(username|email|password|token|code|client_secret|grant_type=password).*'
-      - key: http.target
-        action: delete
-        pattern: '.*(username|email|password|token|code|client_secret|grant_type=password).*'
-      - key: url.full
-        action: delete
-        pattern: '.*(username|email|password|token|code|client_secret|grant_type=password).*'
-      - key: url.query
-        action: delete
-        pattern: '.*(username|email|password|token|code|client_secret).*'
+  # Nota: il transform processor con OTTL permette di eliminare
+  # un attributo in base al suo VALORE, non al nome della chiave.
+  # L'attributes processor con pattern matcha solo sui key names.
+  transform/redact-urls:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          - delete_key(attributes, "http.url") where IsMatch(attributes["http.url"], ".*(username|email|password|token|code|client_secret|grant_type=password).*")
+          - delete_key(attributes, "http.target") where IsMatch(attributes["http.target"], ".*(username|email|password|token|code|client_secret|grant_type=password).*")
+          - delete_key(attributes, "url.full") where IsMatch(attributes["url.full"], ".*(username|email|password|token|code|client_secret|grant_type=password).*")
+          - delete_key(attributes, "url.query") where IsMatch(attributes["url.query"], ".*(username|email|password|token|code|client_secret).*")
 
   # =============================================
   # 5. HASH - User identifiers per correlazione
@@ -109,17 +107,17 @@ processors:
         action: hash
 
   # =============================================
-  # 6. SANITIZE - Database queries
+  # 6. SANITIZE - Database queries (OTTL)
   # =============================================
   # Elimina query che contengono valori PII
-  attributes/sanitize-db:
-    actions:
-      - key: db.statement
-        action: delete
-        pattern: ".*(email|username|password|user_id)\\s*=\\s*'[^']*'.*"
-      - key: db.statement
-        action: delete
-        pattern: ".*VALUES\\s*\\([^)]*@[^)]*\\).*"
+  # Stessa logica del REDACT: matcha sul valore dell'attributo
+  transform/sanitize-db:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          - delete_key(attributes, "db.statement") where IsMatch(attributes["db.statement"], ".*(email|username|password|user_id)\\s*=.*")
+          - delete_key(attributes, "db.statement") where IsMatch(attributes["db.statement"], ".*VALUES\\s*\\([^)]*@[^)]*\\).*")
 
   # =============================================
   # 7. TRANSFORM LOGS - OTTL per log PII
@@ -192,9 +190,9 @@ service:
         memory_limiter,
         filter/drop-health,
         attributes/delete-pii,
-        attributes/redact-urls,
+        transform/redact-urls,
         attributes/hash-users,
-        attributes/sanitize-db,
+        transform/sanitize-db,
         batch
       ]
       exporters: [otlp/tempo]
