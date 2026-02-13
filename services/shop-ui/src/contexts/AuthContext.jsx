@@ -1,7 +1,7 @@
 import { createContext, useState, useEffect, useCallback, useRef } from 'react'
 import Keycloak from 'keycloak-js'
 
-const KEYCLOAK_URL = 'http://localhost:8080/auth'
+const KEYCLOAK_URL = `${window.location.origin}/auth`
 const KEYCLOAK_REALM = 'techstore'
 const KEYCLOAK_CLIENT_ID = 'shop-ui'
 
