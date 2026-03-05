@@ -39,18 +39,38 @@ export default defineConfig({
 
   /* Configure projects for major browsers */
   projects: [
-    /* Setup project for authentication */
+    // ── Setup: Keycloak login for each user ──────────────────────────────
     {
       name: 'setup',
       testMatch: /.*\.setup\.ts/,
     },
 
+    // ── Authenticated projects (one per role) ────────────────────────────
     {
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
+        storageState: 'tests/.auth/mario.json',
       },
       dependencies: ['setup'],
+    },
+    {
+      name: 'chromium-admin',
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: 'tests/.auth/admin.json',
+      },
+      dependencies: ['setup'],
+      testMatch: /.*admin.*\.spec\.ts/,
+    },
+    {
+      name: 'chromium-blocked',
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: 'tests/.auth/blocked.json',
+      },
+      dependencies: ['setup'],
+      testMatch: /.*blocked.*\.spec\.ts/,
     },
   ],
 

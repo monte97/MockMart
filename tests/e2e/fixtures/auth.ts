@@ -1,56 +1,57 @@
 /**
  * Authentication fixtures for MockMart E2E tests.
- * Handles Keycloak login and storageState management.
  *
- * Part of: Parte 1 - Testare un E-commerce a Microservizi
+ * Part of: Parte 8 - Authentication Testing
+ *
+ * Provides:
+ *   - USERS dict with credentials and metadata
+ *   - storageStatePath() helper to locate saved auth state
+ *   - Extended test fixture with userKey option
  */
 
 import { test as base, expect } from '@playwright/test';
+import path from 'path';
 
-// Test users from MockMart
+// ─── Test Users ──────────────────────────────────────────────────────────────
+
 export const USERS = {
   mario: {
     username: 'mario',
+    email: 'mario.rossi@example.com',
     password: 'mario123',
-    role: 'user',
+    role: 'user' as const,
+    canCheckout: true,
   },
   admin: {
     username: 'admin',
+    email: 'admin@techstore.com',
     password: 'admin123',
-    role: 'admin',
+    role: 'admin' as const,
+    canCheckout: true,
   },
   blocked: {
     username: 'blocked',
+    email: 'blocked@example.com',
     password: 'blocked123',
-    role: 'user',
+    role: 'user' as const,
     canCheckout: false,
   },
 } as const;
 
 export type UserKey = keyof typeof USERS;
 
-/**
- * Extended test fixture with authenticated user.
- */
+// ─── Storage State ───────────────────────────────────────────────────────────
+
+const AUTH_DIR = path.join(__dirname, '../.auth');
+
+export function storageStatePath(userKey: UserKey): string {
+  return path.join(AUTH_DIR, `${userKey}.json`);
+}
+
+// ─── Fixture ─────────────────────────────────────────────────────────────────
+
 export const test = base.extend<{ userKey: UserKey }>({
   userKey: ['mario', { option: true }],
 });
-
-/**
- * Login to MockMart via Keycloak.
- * Used in setup to create storageState.
- */
-export async function loginAs(page: any, userKey: UserKey) {
-  const user = USERS[userKey];
-
-  // TODO: Implement Keycloak login flow
-  // 1. Go to app
-  // 2. Click login
-  // 3. Fill Keycloak form
-  // 4. Handle redirect back
-
-  await page.goto('/');
-  // ... login implementation
-}
 
 export { expect };
